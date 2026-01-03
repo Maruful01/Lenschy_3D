@@ -63,12 +63,12 @@ const openModal = async () => {
   isOpen.value = true;
   await nextTick();
 
-  objectUrl.value = await getAppwriteGLBBlobURL(
-    cfg.public.APPWRITE_ENDPOINT,
-    cfg.public.APPWRITE_PROJECT_ID,
-    cfg.public.APPWRITE_PRESCRIPTION_BUCKET,
-    "6950fab700243f21088c"
-  );
+  // objectUrl.value = await getAppwriteGLBBlobURL(
+  //   cfg.public.APPWRITE_ENDPOINT,
+  //   cfg.public.APPWRITE_PROJECT_ID,
+  //   cfg.public.APPWRITE_PRESCRIPTION_BUCKET,
+  //   "6950fab700243f21088c"
+  // );
   //  "693e80af0003da5ca67a"
   //  "693ead5100014e2c9b06"
   //  "693eb0cc0027936d155c"
@@ -95,8 +95,8 @@ const openModal = async () => {
 const closeModal = () => {
   stopCameraFn?.();
 
-  if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
-  objectUrl.value = "";
+  // if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
+  // objectUrl.value = "";
 
   isOpen.value = false;
 };
