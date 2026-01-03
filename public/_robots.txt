@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /_document
+Disallow: /cart
+Disallow: /checkout
+Disallow: /error
+Disallow: /products
+Disallow: /user
+Sitemap: https://www.lenschy.com/sitemap.xml
+
