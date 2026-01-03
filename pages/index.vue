@@ -52,6 +52,19 @@ useSeoMeta({
       <Carousal />
     </div> -->
     <Features />
+    <Card
+      image1="gfdgds"
+      image2="gsg"
+      title="dfgss"
+      size="Size: Wide • Urban Edit"
+      :rating="4.8"
+      :reviews="114"
+      :discountedPrice="1500"
+      :originalPrice="2000"
+      :discount="25"
+      :colors="['#ccc', '#000']"
+    />
+
     <VisualSearch />
 
     <div class="grid grid-cols-1">
