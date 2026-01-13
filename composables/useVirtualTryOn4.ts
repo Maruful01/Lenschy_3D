@@ -129,7 +129,7 @@ export function useVirtualTryOn(
     scene = new THREE.Scene();
 
     const aspect = (canvas.clientWidth || 800) / (canvas.clientHeight || 600);
-    camera = new THREE.PerspectiveCamera(95, aspect, 0.01, 1000);
+    camera = new THREE.PerspectiveCamera(45, aspect, 0.01, 1000);
     camera.position.set(0, 0, 5);
     camera.lookAt(new THREE.Vector3(0, 0, PLANE_Z));
 

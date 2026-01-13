@@ -4,6 +4,9 @@ import { fetchProducts } from "@/composables/useFitchedProducts"; // Import your
 import Testimonials from "~/components/Testimonials.vue";
 import TechShowcaseRibbon from "~/components/TechShowcaseRibbon.vue";
 import FaceShapes from "~/components/FaceShapes.vue";
+import VrTyON3d from "~/components/VrTyON3d.vue";
+import VisualTy from "~/components/VisualTy.vue";
+const { getAppwriteImageUrl } = useAppwrite();
 
 useSeoMeta({
   title: "Lenschy.com - Affordable Eyewear Collection in Bangladesh",
@@ -52,7 +55,7 @@ useSeoMeta({
       <Carousal />
     </div> -->
     <Features />
-    <Card
+    <!-- <Card
       image1="gfdgds"
       image2="gsg"
       title="dfgss"
@@ -63,10 +66,10 @@ useSeoMeta({
       :originalPrice="2000"
       :discount="25"
       :colors="['#ccc', '#000']"
-    />
+    /> -->
 
+    <VisualTy />
     <VisualSearch />
-
     <div class="grid grid-cols-1">
       <FaceShapes />
     </div>
@@ -77,5 +80,11 @@ useSeoMeta({
     <!-- <div class="grid grid-cols-1">
       <Testimonials />
     </div> -->
+
+    <img
+      :src="getAppwriteImageUrl('694b7937001b0f14f76d')"
+      alt="Eyewear"
+      class="object-cover w-64 h-64 transition-all duration-300 group-hover:scale-125"
+    />
   </section>
 </template>
