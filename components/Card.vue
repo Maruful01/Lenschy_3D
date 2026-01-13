@@ -5,7 +5,7 @@ import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants";
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
 // import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVirtualTryOn8";
+import { useVirtualTryOn } from "@/composables/useVirtualTryOn11";
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
 
 // import { useVirtualTryOn } from "@/composables/useVirtyalEyeglass";
@@ -214,6 +214,13 @@ const goToProductPage = () => {
       >
         Virtual Try-On
       </h2>
+      <!-- <div class="relative aspect-video w-full overflow-hidden">
+        <video
+          ref="videoRef"
+          class="absolute inset-0 w-full h-full object-cover"
+        ></video>
+        <canvas ref="canvasRef" class="absolute inset-0 w-full h-full"></canvas>
+      </div> -->
       <div
         class="relative w-full h-[550px] flex justify-center items-center rounded-md overflow-hidden"
       >

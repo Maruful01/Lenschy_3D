@@ -52,6 +52,7 @@ const SMOOTHING = 0.65;
 const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End"; // e.g. "Temple_L_End"
 const GLTF_TEMPLE_RIGHT_NAME = "Temple_R_End"; // e.g. "Temple_R_End"
 
+let animationFrameId: number;
 type GlassesUserData = {
   prev?: {
     pos: THREE.Vector3;
@@ -82,14 +83,31 @@ export function useVirtualTryOn(
 
   const src = unref(glassesModelSrc);
 
+  const animate = () => {
+    if (renderer && scene && camera) {
+      renderer.render(scene, camera);
+    }
+    // Assign the ID to the outer variable
+    animationFrameId = requestAnimationFrame(animate);
+  };
+
   // ---------- Helpers ----------
 
   const toPx = (L: Landmark[], i: number, vw: number, vh: number) =>
     new THREE.Vector3(L[i].x * vw, L[i].y * vh, L[i].z);
 
   const pxToWorld = (xPx: number, yPx: number, vw: number, vh: number) => {
-    const x = (xPx / vw - 0.5) * PLANE_WIDTH;
-    const y = (0.5 - yPx / vh) * PLANE_HEIGHT;
+    // Use a fixed height for the virtual plane (9 units)
+    const planeHeight = 9;
+    // Calculate dynamic width based on the actual video feed aspect ratio
+    const videoAspect = vw / vh;
+    const planeWidth = planeHeight * videoAspect;
+
+    // Map 0 -> 1 pixel coordinates to -halfWidth -> +halfWidth
+    const x = (xPx / vw - 0.5) * planeWidth;
+    // Map 0 -> 1 pixel coordinates to +halfHeight -> -halfHeight (Invert Y)
+    const y = (0.5 - yPx / vh) * planeHeight;
+
     return new THREE.Vector3(x, y, 0);
   };
 
@@ -110,135 +128,80 @@ export function useVirtualTryOn(
   };
 
   // ---------- Three.js init ----------
-
   const initThree = async () => {
-    if (!canvasRef.value) return;
-    const canvas = canvasRef.value;
+    if (!canvasRef.value || !videoEl) return;
+
+    const vw = videoEl.videoWidth;
+    const vh = videoEl.videoHeight;
+    const videoAspect = vw / vh;
 
     renderer = new THREE.WebGLRenderer({
-      canvas,
+      canvas: canvasRef.value,
       alpha: true,
       antialias: true,
     });
-    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(
-      canvas.clientWidth || 800,
-      canvas.clientHeight || 600,
+      canvasRef.value.clientWidth,
+      canvasRef.value.clientHeight,
       false
     );
-    renderer.autoClear = true;
 
     scene = new THREE.Scene();
 
-    const aspect = (canvas.clientWidth || 800) / (canvas.clientHeight || 600);
-    camera = new THREE.PerspectiveCamera(45, aspect, 0.01, 1000);
+    // Camera aspect should match the UI display aspect
+    const displayAspect =
+      canvasRef.value.clientWidth / canvasRef.value.clientHeight;
+    camera = new THREE.PerspectiveCamera(45, displayAspect, 0.1, 1000);
     camera.position.set(0, 0, 5);
-    camera.lookAt(new THREE.Vector3(0, 0, PLANE_Z));
 
-    // // lighting
-    // const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-    // scene.add(hemi);
-    // const dir = new THREE.DirectionalLight(0xffffff, 5.2);
-    // dir.position.set(0, 2, 5);
-    // // scene.add(dir);
-    // const amb = new THREE.AmbientLight(0xffffff, 1);
-    // scene.add(amb);
+    // Background Plane
+    const planeHeight = 9;
+    const planeWidth = planeHeight * videoAspect;
+    const videoTex = new VideoTexture(videoEl);
+    const planeGeo = new THREE.PlaneGeometry(planeWidth, planeHeight);
+    const planeMat = new THREE.MeshBasicMaterial({ map: videoTex });
+    const videoPlane = new THREE.Mesh(planeGeo, planeMat);
+    videoPlane.position.z = PLANE_Z - 1;
+    scene.add(videoPlane);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 0.6));
-    const dir = new THREE.DirectionalLight(0xffffff, 3.5);
-    dir.position.set(2, 3, 5);
-    scene.add(dir);
-    scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+    // Lighting - crucial for GLB visibility
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 2);
+    dirLight.position.set(0, 5, 5);
+    scene.add(dirLight);
 
-    // video background plane (never occludes glasses)
-    // if (videoEl) {
-    //   const videoTex = new VideoTexture(videoEl);
-    //   videoTex.minFilter = THREE.LinearFilter;
-    //   videoTex.magFilter = THREE.LinearFilter;
-    //   videoTex.format = THREE.RGBAFormat;
-
-    //   const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, PLANE_HEIGHT);
-    //   const planeMat = new THREE.MeshBasicMaterial({ map: videoTex });
-    //   const plane = new THREE.Mesh(planeGeo, planeMat);
-
-    //   plane.position.set(0, 0, PLANE_Z - 1);
-    //   plane.renderOrder = 0;
-
-    //   // background only – no depth
-    //   plane.material.depthWrite = false;
-    //   plane.material.depthTest = true;
-
-    //   scene.add(plane);
-    // }
-
-    // GLTF load
+    // Load Model
     const loader = new GLTFLoader();
+    const path =
+      typeof glassesModelSrc === "string"
+        ? glassesModelSrc
+        : glassesModelSrc.value;
+
     loader.load(
-      src,
+      path,
       (gltf) => {
         const model = gltf.scene;
-        model.rotation.set(0, 0, 0);
-        model.position.add(BRIDGE_OFFSET);
 
-        const container = new THREE.Group() as THREE.Group & {
-          userData: GlassesUserData;
-        };
-        container.userData = {};
+        // Ensure the model is centered
+        const box = new THREE.Box3().setFromObject(model);
+        const center = box.getCenter(new THREE.Vector3());
+        model.position.sub(center);
+        model.position.add(BRIDGE_OFFSET); // Apply your specific offset
+
+        const container = new THREE.Group() as any;
         container.add(model);
         container.visible = false;
-        container.renderOrder = 10;
-
-        // Find & tag temple end objects by name
-        let templeL: THREE.Object3D | null = null;
-        let templeR: THREE.Object3D | null = null;
-
-        model.traverse((node: any) => {
-          if (!(node instanceof THREE.Mesh)) return;
-          node.frustumCulled = false;
-
-          const mats = Array.isArray(node.material)
-            ? node.material
-            : [node.material];
-
-          mats.forEach((m: any) => {
-            if (!m) return;
-            m.depthTest = true;
-            m.depthWrite = true;
-          });
-
-          const name = (node.name || "").toLowerCase();
-          if (!templeL && name.includes(GLTF_TEMPLE_LEFT_NAME.toLowerCase())) {
-            templeL = node;
-          }
-          if (!templeR && name.includes(GLTF_TEMPLE_RIGHT_NAME.toLowerCase())) {
-            templeR = node;
-          }
-        });
-
-        container.userData.templeL = templeL;
-        container.userData.templeR = templeR;
-
         scene!.add(container);
         glassesContainer.value = container;
         isModelReady.value = true;
       },
       undefined,
-      (err) => {
-        console.error("GLTF load error", err);
-      }
+      (e) => console.error("GLB Load Error", e)
     );
 
-    const animate = () => {
-      if (renderer && scene && camera) {
-        renderer.render(scene, camera);
-      }
-      requestAnimationFrame(animate);
-    };
     animate();
-
-    window.addEventListener("resize", onResize);
   };
-
   // ---------- MediaPipe results → pose glasses ----------
 
   const onResults = (results: any) => {
@@ -396,44 +359,68 @@ export function useVirtualTryOn(
   const startCamera = async () => {
     if (!canvasRef.value) return;
 
+    // 1. Create and attach video element if it doesn't exist
     if (!videoEl) {
       videoEl = document.createElement("video");
-      videoEl.autoplay = true;
-      videoEl.muted = true;
-      (videoEl as any).playsInline = true;
-      videoEl.style.display = "none";
+      videoEl.setAttribute("autoplay", "");
+      videoEl.setAttribute("muted", "");
+      videoEl.setAttribute("playsinline", "");
+      // Hide it off-screen but keep it in DOM so VideoTexture works
+      videoEl.style.cssText =
+        "position:fixed; top:-10000px; visibility:hidden;";
+      document.body.appendChild(videoEl);
     }
 
-    if (!renderer) {
-      await initThree();
+    try {
+      // 2. Request Camera Stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          facingMode: "user",
+        },
+      });
+      videoEl.srcObject = stream;
+
+      // 3. Wait for video to be ready before starting Three.js
+      await new Promise((resolve) => {
+        videoEl!.onloadedmetadata = () => {
+          videoEl!.play().then(resolve);
+        };
+      });
+
+      // 4. Initialize Three.js after video is playing
+      if (!renderer) {
+        await initThree();
+      }
+
+      // 5. Setup MediaPipe
+      const faceMesh = new FaceMesh({
+        locateFile: (f: string) =>
+          `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
+      });
+
+      faceMesh.setOptions({
+        maxNumFaces: 1,
+        refineLandmarks: true,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6,
+      });
+
+      faceMesh.onResults(onResults);
+
+      cameraRef.value = new cam.Camera(videoEl, {
+        onFrame: async () => {
+          if (videoEl) await faceMesh.send({ image: videoEl });
+        },
+        width: videoEl.videoWidth,
+        height: videoEl.videoHeight,
+      });
+
+      cameraRef.value.start();
+    } catch (err) {
+      console.error("Camera Access Denied or Error:", err);
     }
-
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 1280, height: 720, facingMode: "user" },
-    });
-    videoEl.srcObject = stream;
-    await videoEl.play();
-
-    const faceMesh = new FaceMesh({
-      locateFile: (f: string) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
-    });
-    faceMesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6,
-    });
-    faceMesh.onResults(onResults);
-
-    cameraRef.value = new cam.Camera(videoEl, {
-      onFrame: async () => {
-        await faceMesh.send({ image: videoEl! });
-      },
-      width: 1280,
-      height: 720,
-    });
-    cameraRef.value.start();
   };
 
   const stopCamera = () => {
