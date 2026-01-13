@@ -55,7 +55,7 @@ useSeoMeta({
       <Carousal />
     </div> -->
     <Features />
-    <!-- <Card
+    <Card
       image1="gfdgds"
       image2="gsg"
       title="dfgss"
@@ -66,9 +66,9 @@ useSeoMeta({
       :originalPrice="2000"
       :discount="25"
       :colors="['#ccc', '#000']"
-    /> -->
+    />
 
-    <VisualTy />
+    <!-- <VisualTy /> -->
     <VisualSearch />
     <div class="grid grid-cols-1">
       <FaceShapes />

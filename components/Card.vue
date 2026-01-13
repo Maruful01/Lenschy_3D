@@ -5,7 +5,7 @@ import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants";
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
 // import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVirtualTryOn11";
+import { useVirtualTryOn } from "@/composables/useVirtualTryOn8";
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
 
 // import { useVirtualTryOn } from "@/composables/useVirtyalEyeglass";
