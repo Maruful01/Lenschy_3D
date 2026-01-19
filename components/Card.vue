@@ -214,14 +214,16 @@ const goToProductPage = () => {
       >
         Virtual Try-On
       </h2>
-      <!-- <div class="relative aspect-video w-full overflow-hidden">
+      <div
+        class="relative w-full h-[550px] flex justify-center items-center rounded-md aspect-video overflow-hidden"
+      >
         <video
           ref="videoRef"
           class="absolute inset-0 w-full h-full object-cover"
         ></video>
         <canvas ref="canvasRef" class="absolute inset-0 w-full h-full"></canvas>
-      </div> -->
-      <div
+      </div>
+      <!-- <div
         class="relative w-full h-[550px] flex justify-center items-center rounded-md overflow-hidden"
       >
         <video
@@ -236,7 +238,7 @@ const goToProductPage = () => {
           class="absolute inset-0"
           style="width: 100%; height: 100%; display: block"
         ></canvas>
-      </div>
+      </div> -->
       <a-slider v-model:value="frameWidth" :min="0.3" :max="0.5" :step="0.01" />
       <div class="flex justify-between mt-2">
         <UButton

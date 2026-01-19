@@ -244,6 +244,19 @@ export function useVirtualTryOn(
         offsetY = (1 - repeatY) / 2;
       }
     }
+
+    videoTex.wrapS = THREE.ClampToEdgeWrapping;
+    videoTex.wrapT = THREE.ClampToEdgeWrapping;
+    videoTex.repeat.set(repeatX, repeatY);
+    videoTex.offset.set(offsetX, offsetY);
+
+    // If mirrored UX, mirror UVs by flipping repeatX and compensating offset.
+    if (MIRROR_VIDEO) {
+      videoTex.repeat.x *= -1;
+      videoTex.offset.x = 1 - offsetX;
+    }
+
+    videoTex.needsUpdate = true;
   };
 
   // ---------- Resize ----------
@@ -257,6 +270,11 @@ export function useVirtualTryOn(
 
     // keep world plane matched to container aspect
     planeH = PLANE_WIDTH / (w / h);
+
+    // Update background plane geometry scaling (avoid stretched faces)
+    if (planeMesh) {
+      planeMesh.scale.set(1, planeH / ((PLANE_WIDTH * 9) / 16), 1);
+    }
 
     // Optional: subtle FOV change per size (keeps framing consistent)
     const t = Math.min(1, Math.max(0, (w - 360) / (900 - 360)));
@@ -292,6 +310,26 @@ export function useVirtualTryOn(
     const dir = new THREE.DirectionalLight(0xffffff, 1.2);
     dir.position.set(0, 2, 5);
     scene.add(dir);
+
+    // Video background plane (depth-write OFF; never occludes glasses)
+    if (videoEl) {
+      videoTex = new VideoTexture(videoEl);
+      videoTex.minFilter = THREE.LinearFilter;
+      videoTex.magFilter = THREE.LinearFilter;
+      videoTex.format = THREE.RGBAFormat;
+
+      const baseH = (PLANE_WIDTH * 9) / 16;
+      const planeGeo = new THREE.PlaneGeometry(PLANE_WIDTH, baseH);
+      const planeMat = new THREE.MeshBasicMaterial({ map: videoTex });
+      planeMesh = new THREE.Mesh(planeGeo, planeMat);
+      planeMesh.position.set(0, 0, PLANE_Z - 1);
+      planeMesh.renderOrder = 0;
+
+      planeMesh.material.depthWrite = false;
+      planeMesh.material.depthTest = true;
+
+      scene.add(planeMesh);
+    }
 
     // GLTF load
     const loader = new GLTFLoader();

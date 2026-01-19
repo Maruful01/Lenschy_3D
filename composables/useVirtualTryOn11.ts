@@ -69,7 +69,7 @@ type GlassesUserData = {
 export function useVirtualTryOn(
   glassesModelSrc: string | Ref<string>,
   frameWidth: Ref<number>,
-  canvasRef: Ref<HTMLCanvasElement | null>
+  canvasRef: Ref<HTMLCanvasElement | null>,
 ) {
   const cameraRef = ref<cam.Camera | null>(null);
 
@@ -144,7 +144,7 @@ export function useVirtualTryOn(
     renderer.setSize(
       canvasRef.value.clientWidth,
       canvasRef.value.clientHeight,
-      false
+      false,
     );
 
     scene = new THREE.Scene();
@@ -152,7 +152,7 @@ export function useVirtualTryOn(
     // Camera aspect should match the UI display aspect
     const displayAspect =
       canvasRef.value.clientWidth / canvasRef.value.clientHeight;
-    camera = new THREE.PerspectiveCamera(45, displayAspect, 0.1, 1000);
+    camera = new THREE.PerspectiveCamera(75, displayAspect, 0.1, 1000);
     camera.position.set(0, 0, 5);
 
     // Background Plane
@@ -197,7 +197,7 @@ export function useVirtualTryOn(
         isModelReady.value = true;
       },
       undefined,
-      (e) => console.error("GLB Load Error", e)
+      (e) => console.error("GLB Load Error", e),
     );
 
     animate();
@@ -252,7 +252,7 @@ export function useVirtualTryOn(
       0.0001,
       combinedDist *
         (pxToWorldEar * 0.7 + pxToWorldEye * 0.3) *
-        frameWidth.value
+        frameWidth.value,
     );
 
     // orientation – x from ears, y from forehead-nose, z = x × y
@@ -281,7 +281,7 @@ export function useVirtualTryOn(
     const dynamicZShiftClamped = THREE.MathUtils.lerp(
       MODEL_Z_SHIFT,
       MODEL_Z_SHIFT * 1,
-      yaw01
+      yaw01,
     );
 
     const positionZ =
@@ -290,7 +290,7 @@ export function useVirtualTryOn(
     const targetPos = new THREE.Vector3(
       bridgeWorld.x,
       bridgeWorld.y,
-      positionZ
+      positionZ,
     );
 
     const yawFactorGlasses = 1 + 0.5 * (yawClamped / maxYaw); // 1.0 → 1.2
