@@ -5,7 +5,7 @@ import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants";
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
 // import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVirtualTryOn11";
+import { useVirtualTryOn } from "@/composables/useVertiulTryOn16";
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
 
 // import { useVirtualTryOn } from "@/composables/useVirtyalEyeglass";
@@ -80,13 +80,11 @@ const openModal = async () => {
   // "6947e53b00171a79fee5"
   // "6943972c00218eeb7bef"
 
-  const { startCamera, stopCamera } = useVirtualTryOn(
+  const { startCamera, stopCamera, isModelReady } = useVirtualTryOn(
     modelSrc,
-    frameWidth,
     videoRef,
     canvasRef,
   );
-
   startCameraFn = startCamera;
   stopCameraFn = stopCamera;
 
