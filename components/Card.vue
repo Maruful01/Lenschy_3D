@@ -47,7 +47,7 @@ const modelSrc = "/Ray Ban RB8352.glb";
 
 // const modelSrc = "/try_on_eyeglass1.glb";
 // const { nodes } = await useGLTF("/titanium_frame_glass.glb", { draco: true });
-let frameWidth = ref<number>(0.36);
+let frameWidth = ref<number>(0.26);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -240,7 +240,12 @@ const goToProductPage = () => {
           style="width: 100%; height: 100%; display: block"
         ></canvas>
       </div> -->
-      <a-slider v-model:value="frameWidth" :min="0.3" :max="0.5" :step="0.01" />
+      <a-slider
+        v-model:value="frameWidth"
+        :min="0.26"
+        :max="0.35"
+        :step="0.01"
+      />
       <div class="flex justify-between mt-2">
         <UButton
           @click="closeModal"

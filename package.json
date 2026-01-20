@@ -16,6 +16,7 @@
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
     "@mediapipe/face_mesh": "^0.4.1633559619",
+    "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "@nuxt/image": "1.9.0",
     "@nuxt/ui": "^2.21.0",
     "@nuxtjs/robots": "^5.5.5",
