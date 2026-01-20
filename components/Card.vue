@@ -83,7 +83,8 @@ const openModal = async () => {
   const { startCamera, stopCamera } = useVirtualTryOn(
     modelSrc,
     frameWidth,
-    canvasRef
+    videoRef,
+    canvasRef,
   );
 
   startCameraFn = startCamera;
