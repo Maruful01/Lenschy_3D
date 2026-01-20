@@ -8,7 +8,7 @@ import {
 } from "@mediapipe/tasks-vision";
 
 // Constants for model adjustment
-const BRIDGE_OFFSET = new THREE.Vector3(0, -0.01, 0.05); // Adjust glasses fit on nose
+const BRIDGE_OFFSET = new THREE.Vector3(0, 1.01, 0.05); // Adjust glasses fit on nose
 const SMOOTHING = 0.2; // 0 = no smoothing, 0.9 = heavy smoothing
 
 type GlassesUserData = {
@@ -70,8 +70,13 @@ export function useVirtualTryOn(
     const loader = new GLTFLoader();
     loader.load(glassesModelSrc, (gltf) => {
       const model = gltf.scene;
+      model.rotation.set(
+        Math.PI, // flip upside-down if needed
+        0,
+        Math.PI, // face forward instead of backward
+      );
       model.position.add(BRIDGE_OFFSET); // Fine-tune model placement
-
+      // model.scale.setScalar(1.0);
       const container = new THREE.Group() as any;
       container.add(model);
       container.matrixAutoUpdate = false; // We will use the MediaPipe matrix directly

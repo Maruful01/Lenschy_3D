@@ -47,7 +47,7 @@ const modelSrc = "/Ray Ban RB8352.glb";
 
 // const modelSrc = "/try_on_eyeglass1.glb";
 // const { nodes } = await useGLTF("/titanium_frame_glass.glb", { draco: true });
-let frameWidth = ref<number>(0.26);
+let frameWidth = ref<number>(0.34);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
