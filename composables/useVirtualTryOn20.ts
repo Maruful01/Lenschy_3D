@@ -14,7 +14,7 @@ interface Landmark {
   z: number;
 }
 
-const BRIDGE_OFFSET = new THREE.Vector3(0, 1.01, 0.05);
+const BRIDGE_OFFSET = new THREE.Vector3(0, -1.5, 0.05);
 const SMOOTHING = 0.25;
 
 const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End";
@@ -155,7 +155,7 @@ export function useVirtualTryOn(
     const loader = new GLTFLoader();
     loader.load(glassesModelSrc, (gltf) => {
       const model = gltf.scene;
-      model.rotation.set(Math.PI, 0, Math.PI);
+      model.rotation.set(Math.PI, Math.PI, 0);
       model.position.add(BRIDGE_OFFSET);
 
       const container = new THREE.Group() as THREE.Group & {
