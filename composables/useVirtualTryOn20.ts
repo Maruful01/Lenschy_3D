@@ -3,16 +3,24 @@ import * as cam from "@mediapipe/camera_utils";
 import {
   FaceLandmarker,
   FilesetResolver,
-  type FaceLandmarkerResult,
+  type FaceLandmarkerResult as BaseFaceLandmarkerResult,
 } from "@mediapipe/tasks-vision";
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 interface Landmark {
   x: number;
   y: number;
   z: number;
 }
+
+/**
+ * Extend the base result type to include faceWorldLandmarks,
+ * which may be present in the runtime but missing from the type definitions.
+ */
+export interface FaceLandmarkerResult extends BaseFaceLandmarkerResult {
+  faceWorldLandmarks?: Landmark[][];
+}
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
 const BRIDGE_OFFSET = new THREE.Vector3(0, -1.5, 0.05);
 const SMOOTHING = 0.25;
@@ -224,6 +232,25 @@ export function useVirtualTryOn(
 
     // 2. Decompose the incoming target matrix
     targetMatrix.decompose(_targetPos, _targetQuat, _targetScale);
+
+    // 2.5 Precision Alignment using faceWorldLandmarks
+    // Landmarks 168 (nose bridge), 234 (left ear), 454 (right ear)
+    // Scale by 100 to convert from meters to centimeters (matching matrix scale)
+    if (results.faceWorldLandmarks?.[0]) {
+      const worldLms = results.faceWorldLandmarks[0];
+      const noseBridge = worldLms[168];
+
+      if (noseBridge) {
+        // Precision alignment for the bridge position
+        _targetPos.set(
+          noseBridge.x * 100,
+          noseBridge.y * 100,
+          noseBridge.z * 100,
+        );
+        // MediaPipe uses Z-forward, Three.js uses Z-back.
+        _targetPos.z *= -1;
+      }
+    }
 
     // 3. Eyeglasses frame width adjustment
     // Using a base scale multiplier to match the previous system's feel
