@@ -4,8 +4,22 @@ import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import {
   FaceLandmarker,
   FilesetResolver,
-  type FaceLandmarkerResult, // Add 'type' here
+  type FaceLandmarkerResult as BaseFaceLandmarkerResult,
 } from "@mediapipe/tasks-vision";
+
+interface Landmark {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * Extend the base result type to include faceWorldLandmarks,
+ * which may be present in the runtime but missing from the type definitions.
+ */
+export interface FaceLandmarkerResult extends BaseFaceLandmarkerResult {
+  faceWorldLandmarks?: Landmark[][];
+}
 
 // Constants for model adjustment
 const BRIDGE_OFFSET = new THREE.Vector3(0, 1.01, 0.05); // Adjust glasses fit on nose
