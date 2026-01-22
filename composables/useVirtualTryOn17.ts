@@ -13,6 +13,9 @@ const SMOOTHING = 0.2; // 0 = no smoothing, 0.9 = heavy smoothing
 
 type GlassesUserData = {
   lastMatrix?: THREE.Matrix4;
+  templeL?: THREE.Object3D;
+  templeR?: THREE.Object3D;
+  defaultTempleDistance?: number;
 };
 
 export function useVirtualTryOn(
@@ -71,16 +74,44 @@ export function useVirtualTryOn(
     const loader = new GLTFLoader();
     loader.load(glassesModelSrc, (gltf) => {
       const model = gltf.scene;
+
+      // Identify temple nodes
+      let templeL: THREE.Object3D | undefined;
+      let templeR: THREE.Object3D | undefined;
+
+      model.traverse((child) => {
+        if (child.name === "Temple_L_End") templeL = child;
+        if (child.name === "Temple_R_End") templeR = child;
+      });
+
       model.rotation.set(
         Math.PI, // flip upside-down if needed
         0,
         Math.PI, // face forward instead of backward
       );
       model.position.add(BRIDGE_OFFSET); // Fine-tune model placement
-      // model.scale.setScalar(1.0);
-      const container = new THREE.Group() as any;
+
+      const container = new THREE.Group() as THREE.Group & {
+        userData: GlassesUserData;
+      };
       container.add(model);
       container.matrixAutoUpdate = false; // We will use the MediaPipe matrix directly
+
+      if (templeL && templeR) {
+        container.userData.templeL = templeL;
+        container.userData.templeR = templeR;
+
+        // Ensure matrices are updated to get accurate world positions
+        model.updateMatrixWorld(true);
+
+        // Calculate default distance between temples in model space
+        const posL = new THREE.Vector3();
+        const posR = new THREE.Vector3();
+        templeL.getWorldPosition(posL);
+        templeR.getWorldPosition(posR);
+        container.userData.defaultTempleDistance = posL.distanceTo(posR);
+      }
+
       scene!.add(container);
       glassesContainer.value = container;
       isModelReady.value = true;
@@ -113,7 +144,11 @@ export function useVirtualTryOn(
 
   const updateScene = (results: FaceLandmarkerResult) => {
     const obj = glassesContainer.value;
-    if (!obj || !results.facialTransformationMatrixes?.length) {
+    if (
+      !obj ||
+      !results.facialTransformationMatrixes?.length ||
+      !results.faceWorldLandmarks?.length
+    ) {
       if (obj) obj.visible = false;
       return;
     }
@@ -125,15 +160,53 @@ export function useVirtualTryOn(
     const flipZ = new THREE.Matrix4().makeScale(1, 1, -1);
     targetMatrix.multiply(flipZ);
 
-    // 2. Decompose the incoming target matrix
-    targetMatrix.decompose(_targetPos, _targetQuat, _targetScale);
-    // Eyeglasses frame width adjustment
-    _targetScale.multiplyScalar(frameWidth.value);
+    // 2. Precise Landmark Tracking (Nose Bridge: 168, Ears: 234, 454)
+    const worldLandmarks = results.faceWorldLandmarks[0];
+    const p168_raw = worldLandmarks[168];
+    const p234_raw = worldLandmarks[234];
+    const p454_raw = worldLandmarks[454];
+
+    // Convert from meters to centimeters and transform to scene space
+    const p168 = new THREE.Vector3(p168_raw.x, p168_raw.y, p168_raw.z)
+      .multiplyScalar(100)
+      .applyMatrix4(targetMatrix);
+    const p234 = new THREE.Vector3(p234_raw.x, p234_raw.y, p234_raw.z)
+      .multiplyScalar(100)
+      .applyMatrix4(targetMatrix);
+    const p454 = new THREE.Vector3(p454_raw.x, p454_raw.y, p454_raw.z)
+      .multiplyScalar(100)
+      .applyMatrix4(targetMatrix);
+
+    // 3. Calculate Target Position (Lock to Nose Bridge)
+    _targetPos.copy(p168);
+
+    // 4. Calculate Target Rotation (Align Temples with Ears)
+    const midEar = new THREE.Vector3()
+      .addVectors(p234, p454)
+      .multiplyScalar(0.5);
+    const forward = new THREE.Vector3().subVectors(p168, midEar).normalize();
+    const right = new THREE.Vector3().subVectors(p454, p234).normalize();
+    const up = new THREE.Vector3().crossVectors(forward, right).normalize();
+    const orthogonalRight = new THREE.Vector3().crossVectors(up, forward);
+
+    // Construct basis: X=Right, Y=Up, Z=Backward (Three.js looks down -Z, so Backward is +Z)
+    const rotMat = new THREE.Matrix4().makeBasis(
+      orthogonalRight,
+      up,
+      forward.clone().negate(),
+    );
+    _targetQuat.setFromRotationMatrix(rotMat);
+
+    // 5. Calculate Target Scale (Adjust to User's Head Size)
+    const currentEarDist = p454.distanceTo(p234);
+    const defaultDist = obj.userData.defaultTempleDistance || 12; // Typical width ~12cm if not found
+    const scaleFactor = (currentEarDist / defaultDist) * frameWidth.value;
+    _targetScale.setScalar(scaleFactor);
 
     if (!obj.userData.lastMatrix) {
       // First frame: apply immediately
-      obj.matrix.copy(targetMatrix);
-      obj.userData.lastMatrix = targetMatrix.clone();
+      obj.matrix.compose(_targetPos, _targetQuat, _targetScale);
+      obj.userData.lastMatrix = obj.matrix.clone();
     } else {
       // 3. Decompose the current/last matrix
       obj.userData.lastMatrix.decompose(_pos, _quat, _scale);
