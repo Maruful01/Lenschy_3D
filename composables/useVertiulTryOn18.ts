@@ -26,6 +26,7 @@ export function useVirtualTryOn(
   let camera3d: THREE.PerspectiveCamera | null = null;
   let faceLandmarker: FaceLandmarker | null = null;
   let rafId = 0;
+  const DEPTH_OFFSET = -4.5;
 
   const isModelReady = ref(false);
   const glassesContainer = shallowRef<
@@ -127,6 +128,9 @@ export function useVirtualTryOn(
 
     // 2. Decompose the incoming target matrix
     targetMatrix.decompose(_targetPos, _targetQuat, _targetScale);
+    _targetPos.add(
+      new THREE.Vector3(0, 0, DEPTH_OFFSET).applyQuaternion(_targetQuat),
+    );
     // Eyeglasses frame width adjustment
     _targetScale.multiplyScalar(frameWidth.value);
 
