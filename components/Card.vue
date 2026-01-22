@@ -5,7 +5,7 @@ import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants";
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
 // import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVertiulTryOn16";
+import { useVirtualTryOn } from "@/composables/useVertiulTryOn17";
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
 
 // import { useVirtualTryOn } from "@/composables/useVirtyalEyeglass";
@@ -47,7 +47,7 @@ const modelSrc = "/Ray Ban RB8352.glb";
 
 // const modelSrc = "/try_on_eyeglass1.glb";
 // const { nodes } = await useGLTF("/titanium_frame_glass.glb", { draco: true });
-let frameWidth = ref<number>(0.34);
+let frameWidth = ref<number>(1.1);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -84,6 +84,7 @@ const openModal = async () => {
     modelSrc,
     videoRef,
     canvasRef,
+    frameWidth,
   );
   startCameraFn = startCamera;
   stopCameraFn = stopCamera;
@@ -222,28 +223,7 @@ const goToProductPage = () => {
         ></video>
         <canvas ref="canvasRef" class="absolute inset-0 w-full h-full"></canvas>
       </div>
-      <!-- <div
-        class="relative w-full h-[550px] flex justify-center items-center rounded-md overflow-hidden"
-      >
-        <video
-          ref="videoRef"
-          autoplay
-          playsinline
-          muted
-          class="w-full h-full object-cover"
-        ></video>
-        <canvas
-          ref="canvasRef"
-          class="absolute inset-0"
-          style="width: 100%; height: 100%; display: block"
-        ></canvas>
-      </div> -->
-      <a-slider
-        v-model:value="frameWidth"
-        :min="0.26"
-        :max="0.35"
-        :step="0.01"
-      />
+      <a-slider v-model:value="frameWidth" :min="0.9" :max="1.4" :step="0.01" />
       <div class="flex justify-between mt-2">
         <UButton
           @click="closeModal"
@@ -300,5 +280,49 @@ const goToProductPage = () => {
 canvas.absolute {
   background: transparent !important;
   pointer-events: none;
+}
+
+.try-on-container {
+  position: relative;
+  width: 100%;
+  max-width: 640px;
+  margin: auto;
+  aspect-ratio: 4 / 3;
+}
+
+.viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* Ensure video and canvas stack perfectly */
+video,
+canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+canvas {
+  pointer-events: none; /* Let clicks pass through to video if needed */
+  z-index: 2;
+}
+
+.loader {
+  position: absolute;
+  z-index: 10;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
 }
 </style>
