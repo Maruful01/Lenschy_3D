@@ -1,3 +1,5 @@
+import { useWindowSize } from "@vueuse/core";
+import { watch } from "vue";
 import { ref, shallowRef, type Ref, onUnmounted } from "vue";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
@@ -6,6 +8,8 @@ import {
   FilesetResolver,
   type FaceLandmarkerResult, // Add 'type' here
 } from "@mediapipe/tasks-vision";
+
+const { width: winW, height: winH } = useWindowSize();
 
 // Constants for model adjustment
 const BRIDGE_OFFSET = new THREE.Vector3(0, 1.5, 0.05); // Adjust glasses fit on nose
@@ -56,10 +60,13 @@ export function useVirtualTryOn(
   const syncLayout = () => {
     if (!videoRef.value || !renderer || !camera3d) return;
 
-    const { clientWidth, clientHeight } = videoRef.value;
-    renderer.setSize(clientWidth, clientHeight, false);
+    const w = videoRef.value.clientWidth;
+    const h = videoRef.value.clientHeight;
+    if (!w || !h) return;
 
-    camera3d.aspect = clientWidth / clientHeight;
+    renderer.setSize(w, h, false);
+
+    camera3d.aspect = w / h;
     camera3d.updateProjectionMatrix();
 
     resizeVideoPlane();
@@ -161,9 +168,20 @@ export function useVirtualTryOn(
       isModelReady.value = true;
       setupVideoPlane();
       // Attach resize handlers for device consistency
-      window.addEventListener("resize", syncLayout);
-      window.addEventListener("orientationchange", () =>
-        setTimeout(syncLayout, 250),
+      watch(
+        [
+          winW,
+          winH,
+          () => videoRef.value?.videoWidth,
+          () => videoRef.value?.videoHeight,
+        ],
+        () => {
+          if (!renderer || !camera3d || !videoRef.value) return;
+          if (!videoRef.value.videoWidth) return; // critical guard
+
+          syncLayout(); // safe, deterministic
+        },
+        { flush: "post" },
       );
     });
   };
