@@ -10,7 +10,7 @@ import {
 } from "@mediapipe/tasks-vision";
 
 // Constants for model adjustment
-const BRIDGE_OFFSET = new THREE.Vector3(0, 2, 0.05); // Adjust glasses fit on nose
+const BRIDGE_OFFSET = new THREE.Vector3(0, 2, 0.05); // Adjust glasses fit on nose (units: cm)
 const SMOOTHING = 0.2; // 0 = no smoothing, 0.9 = heavy smoothing
 
 const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End";
@@ -263,6 +263,12 @@ export function useVirtualTryOn(
   const _targetQuat = new THREE.Quaternion();
   const _targetScale = new THREE.Vector3();
 
+  // Scratch vectors and state for dynamic temple constraints
+  const _v1 = new THREE.Vector3();
+  const _v2 = new THREE.Vector3();
+  const _yAxis = new THREE.Vector3(0, 1, 0);
+  let _smoothedYaw = 0;
+
   const updateScene = (results: FaceLandmarkerResult) => {
     const obj = glassesContainer.value;
     if (!obj || !results.facialTransformationMatrixes?.length) {
@@ -328,11 +334,43 @@ export function useVirtualTryOn(
           -(rightEarLM.z - bridgeLM.z) * 100,
         );
 
-        // Green Line Constraint (Lateral): No inward sliding
-        // Left (negative X): target.x must be at or outside (more negative than) canonical X
-        if (targetL.x > canonL.x) targetL.x = canonL.x;
-        // Right (positive X): target.x must be at or outside (more positive than) canonical X
-        if (targetR.x < canonR.x) targetR.x = canonR.x;
+        // 1. Head Yaw Calculation (from landmarks)
+        const dx = targetR.x - targetL.x;
+        const dz = targetR.z - targetL.z;
+        const rawYaw = Math.atan2(dz, dx);
+
+        // Apply temporal smoothing to yaw to prevent jitter
+        _smoothedYaw = THREE.MathUtils.lerp(
+          _smoothedYaw,
+          rawYaw,
+          1 - SMOOTHING,
+        );
+
+        // 2. Rotate Canonical Positions by Smoothed Yaw
+        // Optimization: Use scratch vectors _v1, _v2
+        const rotatedL = _v1
+          .copy(canonL)
+          .sub(BRIDGE_OFFSET)
+          .applyAxisAngle(_yAxis, _smoothedYaw);
+        const rotatedR = _v2
+          .copy(canonR)
+          .sub(BRIDGE_OFFSET)
+          .applyAxisAngle(_yAxis, _smoothedYaw);
+
+        // 3. Lateral Constraint (Green Line Rule)
+        // Left Temple constraint (handles side-crossing via rotatedL.x sign)
+        if (rotatedL.x < 0) {
+          if (targetL.x > rotatedL.x) targetL.x = rotatedL.x;
+        } else {
+          if (targetL.x < rotatedL.x) targetL.x = rotatedL.x;
+        }
+
+        // Right Temple constraint
+        if (rotatedR.x > 0) {
+          if (targetR.x < rotatedR.x) targetR.x = rotatedR.x;
+        } else {
+          if (targetR.x > rotatedR.x) targetR.x = rotatedR.x;
+        }
 
         // Red Line Constraint (Vertical): Tie to ear height
         // (Handled by using targetL.y and targetR.y directly)
@@ -341,11 +379,12 @@ export function useVirtualTryOn(
         // We update model world matrix once to ensure accuracy for coordinate conversion
         obj.children[0].updateMatrixWorld(true);
 
-        const worldTargetL = obj.localToWorld(targetL.clone());
+        // Map targets back from bridge-relative to face-center-relative space
+        const worldTargetL = obj.localToWorld(targetL.add(BRIDGE_OFFSET));
         const localTargetL = tL.parent!.worldToLocal(worldTargetL);
         tL.position.lerp(localTargetL, 1 - SMOOTHING);
 
-        const worldTargetR = obj.localToWorld(targetR.clone());
+        const worldTargetR = obj.localToWorld(targetR.add(BRIDGE_OFFSET));
         const localTargetR = tR.parent!.worldToLocal(worldTargetR);
         tR.position.lerp(localTargetR, 1 - SMOOTHING);
       }
