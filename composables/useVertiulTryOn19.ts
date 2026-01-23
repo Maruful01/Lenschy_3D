@@ -27,7 +27,7 @@ export function useVirtualTryOn(
   let faceLandmarker: FaceLandmarker | null = null;
   let rafId = 0;
   const DEPTH_OFFSET = -4.5;
-  const VIDEO_PLANE_Z = -5;
+  const VIDEO_PLANE_Z = -100;
 
   const isModelReady = ref(false);
   const glassesContainer = shallowRef<
@@ -53,19 +53,52 @@ export function useVirtualTryOn(
 
   let videoPlane: THREE.Mesh | null = null;
 
+  const syncLayout = () => {
+    if (!videoRef.value || !renderer || !camera3d) return;
+
+    const { clientWidth, clientHeight } = videoRef.value;
+    renderer.setSize(clientWidth, clientHeight, false);
+
+    camera3d.aspect = clientWidth / clientHeight;
+    camera3d.updateProjectionMatrix();
+
+    resizeVideoPlane();
+  };
+
   const resizeVideoPlane = () => {
     if (!videoPlane || !camera3d || !videoRef.value) return;
 
     const videoEl = videoRef.value;
+    const { videoWidth, videoHeight } = videoEl;
+    if (!videoWidth || !videoHeight) return;
 
-    const aspect = videoEl.videoWidth / videoEl.videoHeight;
     const distance = Math.abs(camera3d.position.z - VIDEO_PLANE_Z);
-
     const vFov = THREE.MathUtils.degToRad(camera3d.fov);
-    const height = 2 * Math.tan(vFov / 2) * distance;
-    const width = height * camera3d.aspect;
+    const planeHeight = 2 * Math.tan(vFov / 2) * distance;
+    const planeWidth = planeHeight * camera3d.aspect;
 
-    videoPlane.scale.set(width, height, 1);
+    videoPlane.scale.set(planeWidth, planeHeight, 1);
+
+    // Apply object-fit: cover logic to the texture
+    const videoAspect = videoWidth / videoHeight;
+    const canvasAspect = camera3d.aspect;
+    const texture = (videoPlane.material as THREE.MeshBasicMaterial).map;
+
+    if (texture) {
+      texture.matrixAutoUpdate = false;
+      if (videoAspect > canvasAspect) {
+        // Video is wider than canvas
+        const repeatX = canvasAspect / videoAspect;
+        texture.repeat.set(repeatX, 1);
+        texture.offset.set((1 - repeatX) / 2, 0);
+      } else {
+        // Video is taller than canvas
+        const repeatY = videoAspect / canvasAspect;
+        texture.repeat.set(1, repeatY);
+        texture.offset.set(0, (1 - repeatY) / 2);
+      }
+      texture.updateMatrix();
+    }
   };
 
   // 2. Initialize Three.js
@@ -128,8 +161,10 @@ export function useVirtualTryOn(
       isModelReady.value = true;
       setupVideoPlane();
       // Attach resize handlers for device consistency
-      window.addEventListener("resize", resizeVideoPlane);
-      window.addEventListener("orientationchange", resizeVideoPlane);
+      window.addEventListener("resize", syncLayout);
+      window.addEventListener("orientationchange", () =>
+        setTimeout(syncLayout, 250),
+      );
     });
   };
 
@@ -222,15 +257,7 @@ export function useVirtualTryOn(
 
     // Sync canvas size
     videoRef.value.onloadedmetadata = () => {
-      const { clientWidth, clientHeight } = videoRef.value!;
-      renderer?.setSize(clientWidth, clientHeight, false);
-
-      if (camera3d) {
-        camera3d.aspect = clientWidth / clientHeight;
-        camera3d.updateProjectionMatrix();
-      }
-
-      resizeVideoPlane();
+      syncLayout();
     };
 
     renderLoop();
