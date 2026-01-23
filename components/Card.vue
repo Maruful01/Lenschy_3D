@@ -5,7 +5,7 @@ import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants";
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
 // import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVertiulTryOn19";
+import { useVirtualTryOn } from "@/composables/useVertiulTryOn21";
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
 
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn20";
@@ -47,7 +47,7 @@ const modelSrc = "/Ray Ban RB8352.glb";
 
 // const modelSrc = "/try_on_eyeglass1.glb";
 // const { nodes } = await useGLTF("/titanium_frame_glass.glb", { draco: true });
-let frameWidth = ref<number>(1.1);
+let frameWidth = ref<number>(0.9);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -223,7 +223,7 @@ const goToProductPage = () => {
         ></video>
         <canvas ref="canvasRef" class="absolute inset-0 w-full h-full"></canvas>
       </div>
-      <a-slider v-model:value="frameWidth" :min="0.9" :max="1.4" :step="0.01" />
+      <a-slider v-model:value="frameWidth" :min="0.8" :max="1" :step="0.01" />
       <div class="flex justify-between mt-2">
         <UButton
           @click="closeModal"
