@@ -12,7 +12,7 @@ import { FACE_TRIANGULATION_INDICES } from "../constants/faceTriangulation";
 
 // Constants for model adjustment
 const BRIDGE_OFFSET = new THREE.Vector3(0, 0.4, 0.05); // Adjust glasses fit on nose (units: cm)
-const SMOOTHING = 0.4; // 0 = no smoothing, 0.9 = heavy smoothing
+const SMOOTHING = 0.2; // 0 = no smoothing, 0.9 = heavy smoothing
 
 const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End";
 const GLTF_TEMPLE_RIGHT_NAME = "Temple_R_End";
