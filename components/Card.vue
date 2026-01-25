@@ -63,16 +63,16 @@ const openModal = async () => {
   isOpen.value = true;
   await nextTick();
 
-  objectUrl.value = await getAppwriteGLBBlobURL(
-    cfg.public.APPWRITE_ENDPOINT,
-    cfg.public.APPWRITE_PROJECT_ID,
-    "696e6ee3002f63b9b2cb",
-    "6975d8c000120ef699f2",
-  );
+  // objectUrl.value = await getAppwriteGLBBlobURL(
+  //   cfg.public.APPWRITE_ENDPOINT,
+  //   cfg.public.APPWRITE_PROJECT_ID,
+  //   "696e6ee3002f63b9b2cb",
+  //   "6975d8c000120ef699f2",
+  // );
   //  6975d3260002a6f10fa0
 
   const { startCamera, stopCamera, isModelReady } = useVirtualTryOn(
-    objectUrl.value,
+    modelSrc,
     frameWidth,
     videoRef,
     canvasRef,
