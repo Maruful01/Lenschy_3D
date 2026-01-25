@@ -184,6 +184,7 @@ export function useVirtualTryOn(
     const faceMaterial = new THREE.MeshBasicMaterial({
       colorWrite: false,
       depthWrite: true,
+      side: THREE.DoubleSide,
     });
     const occluder = new THREE.Mesh(faceGeometry, faceMaterial);
     occluder.renderOrder = 1;
@@ -199,8 +200,19 @@ export function useVirtualTryOn(
         userData: GlassesUserData;
       };
       container.userData = {};
-      container.add(model);
       container.matrixAutoUpdate = false;
+
+      // Group for glasses that handles the DEPTH_OFFSET fitting
+      const glassesGroup = new THREE.Group();
+      glassesGroup.name = "GlassesGroup";
+      glassesGroup.position.set(0, 0, DEPTH_OFFSET);
+      glassesGroup.add(model);
+      container.add(glassesGroup);
+
+      // Add occluder to container so it follows head pose & smoothing
+      if (faceOccluder.value) {
+        container.add(faceOccluder.value);
+      }
 
       let templeL: any = null;
       let templeR: any = null;
@@ -239,11 +251,6 @@ export function useVirtualTryOn(
         container.userData.canonicalTempleRPos = pos;
       }
 
-      container.renderOrder = 2;
-      // Add occluder to container so it follows head pose & smoothing
-      if (faceOccluder.value) {
-        container.add(faceOccluder.value);
-      }
       s.add(container);
       glassesContainer.value = container;
       isModelReady.value = true;
@@ -302,6 +309,7 @@ export function useVirtualTryOn(
     const obj = glassesContainer.value;
     if (!obj || !results.facialTransformationMatrixes?.length) {
       if (obj) obj.visible = false;
+      if (faceOccluder.value) faceOccluder.value.visible = false;
       return;
     }
 
@@ -312,9 +320,7 @@ export function useVirtualTryOn(
     targetMatrix.multiply(flipZ);
 
     targetMatrix.decompose(_targetPos, _targetQuat, _targetScale);
-    _targetPos.add(
-      new THREE.Vector3(0, 0, DEPTH_OFFSET).applyQuaternion(_targetQuat),
-    );
+    // Note: DEPTH_OFFSET is handled by the GlassesGroup child position
     _targetScale.multiplyScalar(frameWidth.value);
 
     if (!obj.userData.lastMatrix) {
@@ -346,10 +352,11 @@ export function useVirtualTryOn(
         // Transform to Three.js coordinates (scale by 100)
         // Note: MediaPipe faceWorldLandmarks are in meters, centered at head origin.
         // Coordinate system: +X right, +Y up, +Z forward (towards camera).
-        // Since we are child of glassesContainer (already flipped Z), we match Three.js.
+        // Since we are child of container (which handles pose), local coords match face space.
+        // We negate Z to match the Z-flip applied to the parent's matrix.
         const tx = lm.x * 100;
         const ty = lm.y * 100;
-        const tz = lm.z * 100;
+        const tz = -lm.z * 100;
 
         const idx = i * 3;
         if (!_hasSmoothedLandmarks) {
