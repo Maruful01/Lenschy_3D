@@ -5,7 +5,7 @@ import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants";
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
 // import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVertiulTryOn24";
+import { useVirtualTryOn } from "@/composables/useVertiulTryOn22";
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
 
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn20";
@@ -63,12 +63,12 @@ const openModal = async () => {
   isOpen.value = true;
   await nextTick();
 
-  // objectUrl.value = await getAppwriteGLBBlobURL(
-  //   cfg.public.APPWRITE_ENDPOINT,
-  //   cfg.public.APPWRITE_PROJECT_ID,
-  //   "696e6ee3002f63b9b2cb",
-  //   "6975d8c000120ef699f2",
-  // );
+  objectUrl.value = await getAppwriteGLBBlobURL(
+    cfg.public.APPWRITE_ENDPOINT,
+    cfg.public.APPWRITE_PROJECT_ID,
+    "696e6ee3002f63b9b2cb",
+    "6975d8c000120ef699f2",
+  );
   //  6975d3260002a6f10fa0
 
   const { startCamera, stopCamera, isModelReady } = useVirtualTryOn(

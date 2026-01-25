@@ -10,7 +10,7 @@ import {
 } from "@mediapipe/tasks-vision";
 
 // Constants for model adjustment
-const BRIDGE_OFFSET = new THREE.Vector3(0, 2, 0.05); // Adjust glasses fit on nose (units: cm)
+const BRIDGE_OFFSET = new THREE.Vector3(0, 1, 0.05); // Adjust glasses fit on nose (units: cm)
 const SMOOTHING = 0.2; // 0 = no smoothing, 0.9 = heavy smoothing
 
 const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End";
