@@ -8,10 +8,11 @@ import {
   FilesetResolver,
   type FaceLandmarkerResult,
 } from "@mediapipe/tasks-vision";
+import { FACE_TRIANGULATION_INDICES } from "../constants/faceTriangulation";
 
 // Constants for model adjustment
-const BRIDGE_OFFSET = new THREE.Vector3(0, 2, 0.05); // Adjust glasses fit on nose (units: cm)
-const SMOOTHING = 0.2; // 0 = no smoothing, 0.9 = heavy smoothing
+const BRIDGE_OFFSET = new THREE.Vector3(0, 1, 0.05); // Adjust glasses fit on nose (units: cm)
+const SMOOTHING = 0.4; // 0 = no smoothing, 0.9 = heavy smoothing
 
 const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End";
 const GLTF_TEMPLE_RIGHT_NAME = "Temple_R_End";
@@ -40,6 +41,7 @@ export function useVirtualTryOn(
   const scene = shallowRef<THREE.Scene | null>(null);
   const camera3d = shallowRef<THREE.PerspectiveCamera | null>(null);
   const videoPlane = shallowRef<THREE.Mesh | null>(null);
+  const faceOccluder = shallowRef<THREE.Mesh | null>(null);
   const glassesContainer = shallowRef<
     (THREE.Group & { userData: GlassesUserData }) | null
   >(null);
@@ -49,7 +51,7 @@ export function useVirtualTryOn(
 
   let faceLandmarker: FaceLandmarker | null = null;
   let rafId = 0;
-  const DEPTH_OFFSET = -5.5;
+  const DEPTH_OFFSET = -4.3;
   const VIDEO_PLANE_Z = -100;
 
   const isModelReady = ref(false);
@@ -172,6 +174,22 @@ export function useVirtualTryOn(
 
     s.add(new THREE.AmbientLight(0xffffff, 1.5));
 
+    // Initialize Face Occluder
+    const faceGeometry = new THREE.BufferGeometry();
+    faceGeometry.setIndex(FACE_TRIANGULATION_INDICES);
+    faceGeometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(new Float32Array(468 * 3), 3),
+    );
+    const faceMaterial = new THREE.MeshBasicMaterial({
+      colorWrite: false,
+      depthWrite: true,
+      side: THREE.DoubleSide,
+    });
+    const occluder = new THREE.Mesh(faceGeometry, faceMaterial);
+    occluder.renderOrder = 1;
+    faceOccluder.value = occluder;
+
     const loader = new GLTFLoader();
     loader.load(glassesModelSrc, (gltf) => {
       const model = gltf.scene;
@@ -182,13 +200,29 @@ export function useVirtualTryOn(
         userData: GlassesUserData;
       };
       container.userData = {};
-      container.add(model);
       container.matrixAutoUpdate = false;
+
+      // Group for glasses that handles the DEPTH_OFFSET fitting
+      const glassesGroup = new THREE.Group();
+      glassesGroup.name = "GlassesGroup";
+      glassesGroup.position.set(0, 0, DEPTH_OFFSET);
+      glassesGroup.add(model);
+      container.add(glassesGroup);
+
+      // Add occluder to container so it follows head pose & smoothing
+      if (faceOccluder.value) {
+        container.add(faceOccluder.value);
+      }
 
       let templeL: any = null;
       let templeR: any = null;
 
       model.traverse((node: any) => {
+        if (node.isMesh) {
+          node.renderOrder = 5;
+          node.material.depthWrite = true;
+          node.material.depthTest = true;
+        }
         if (node.name.includes(GLTF_TEMPLE_LEFT_NAME)) templeL = node;
         if (node.name.includes(GLTF_TEMPLE_RIGHT_NAME)) templeR = node;
       });
@@ -268,11 +302,14 @@ export function useVirtualTryOn(
   const _v2 = new THREE.Vector3();
   const _yAxis = new THREE.Vector3(0, 1, 0);
   let _smoothedYaw = 0;
+  const _smoothedLandmarks = new Float32Array(468 * 3);
+  let _hasSmoothedLandmarks = false;
 
   const updateScene = (results: FaceLandmarkerResult) => {
     const obj = glassesContainer.value;
     if (!obj || !results.facialTransformationMatrixes?.length) {
       if (obj) obj.visible = false;
+      if (faceOccluder.value) faceOccluder.value.visible = false;
       return;
     }
 
@@ -283,9 +320,7 @@ export function useVirtualTryOn(
     targetMatrix.multiply(flipZ);
 
     targetMatrix.decompose(_targetPos, _targetQuat, _targetScale);
-    _targetPos.add(
-      new THREE.Vector3(0, 0, DEPTH_OFFSET).applyQuaternion(_targetQuat),
-    );
+    // Note: DEPTH_OFFSET is handled by the GlassesGroup child position
     _targetScale.multiplyScalar(frameWidth.value);
 
     if (!obj.userData.lastMatrix) {
@@ -303,8 +338,60 @@ export function useVirtualTryOn(
 
     obj.visible = true;
 
-    // 4. Implement Landmark-Driven Constraint System (Temples)
+    // 3.5. Update Face Occluder
     const worldLandmarks = (results as any).faceWorldLandmarks?.[0];
+    const occluder = faceOccluder.value;
+    if (worldLandmarks && occluder) {
+      const posAttr = occluder.geometry.attributes.position;
+      const positions = posAttr.array as Float32Array;
+
+      for (let i = 0; i < 468; i++) {
+        const lm = worldLandmarks[i];
+        if (!lm) continue;
+
+        // Transform to Three.js coordinates (scale by 100)
+        // Note: MediaPipe faceWorldLandmarks are in meters, centered at head origin.
+        // Coordinate system: +X right, +Y up, +Z forward (towards camera).
+        // Since we are child of container (which handles pose), local coords match face space.
+        // We negate Z to match the Z-flip applied to the parent's matrix.
+        const tx = lm.x * 100;
+        const ty = lm.y * 100;
+        const tz = -lm.z * 100;
+
+        const idx = i * 3;
+        if (!_hasSmoothedLandmarks) {
+          _smoothedLandmarks[idx] = tx;
+          _smoothedLandmarks[idx + 1] = ty;
+          _smoothedLandmarks[idx + 2] = tz;
+        } else {
+          _smoothedLandmarks[idx] = THREE.MathUtils.lerp(
+            _smoothedLandmarks[idx],
+            tx,
+            1 - SMOOTHING,
+          );
+          _smoothedLandmarks[idx + 1] = THREE.MathUtils.lerp(
+            _smoothedLandmarks[idx + 1],
+            ty,
+            1 - SMOOTHING,
+          );
+          _smoothedLandmarks[idx + 2] = THREE.MathUtils.lerp(
+            _smoothedLandmarks[idx + 2],
+            tz,
+            1 - SMOOTHING,
+          );
+        }
+        positions[idx] = _smoothedLandmarks[idx];
+        positions[idx + 1] = _smoothedLandmarks[idx + 1];
+        positions[idx + 2] = _smoothedLandmarks[idx + 2];
+      }
+      _hasSmoothedLandmarks = true;
+      posAttr.needsUpdate = true;
+      occluder.visible = true;
+    } else if (occluder) {
+      occluder.visible = false;
+    }
+
+    // 4. Implement Landmark-Driven Constraint System (Temples)
     if (
       worldLandmarks &&
       obj.userData.templeL &&

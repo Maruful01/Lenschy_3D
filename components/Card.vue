@@ -5,7 +5,7 @@ import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants";
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
 // import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVertiulTryOn22";
+import { useVirtualTryOn } from "@/composables/useVertiulTryOn24";
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
 
 // import { useVirtualTryOn } from "@/composables/useVirtualTryOn20";
@@ -47,7 +47,7 @@ const modelSrc = "/Ray Ban RB8352.glb";
 
 // const modelSrc = "/try_on_eyeglass1.glb";
 // const { nodes } = await useGLTF("/titanium_frame_glass.glb", { draco: true });
-let frameWidth = ref<number>(0.9);
+let frameWidth = ref<number>(1.15);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
@@ -63,25 +63,16 @@ const openModal = async () => {
   isOpen.value = true;
   await nextTick();
 
-  // objectUrl.value = await getAppwriteGLBBlobURL(
-  //   cfg.public.APPWRITE_ENDPOINT,
-  //   cfg.public.APPWRITE_PROJECT_ID,
-  //   cfg.public.APPWRITE_PRESCRIPTION_BUCKET,
-  //   "6950fab700243f21088c"
-  // );
-  //  "693e80af0003da5ca67a"
-  //  "693ead5100014e2c9b06"
-  //  "693eb0cc0027936d155c"
-  // 693ebd150035beb3278c
-  // "693fd99000087b3b25f1"
-  // "693fea6e0000c1dc11ec"
-  // "69438b630007a47faec1"
-  // "694656410027dcb9f51f"
-  // "6947e53b00171a79fee5"
-  // "6943972c00218eeb7bef"
+  objectUrl.value = await getAppwriteGLBBlobURL(
+    cfg.public.APPWRITE_ENDPOINT,
+    cfg.public.APPWRITE_PROJECT_ID,
+    "696e6ee3002f63b9b2cb",
+    "6975d8c000120ef699f2",
+  );
+  //  6975d3260002a6f10fa0
 
   const { startCamera, stopCamera, isModelReady } = useVirtualTryOn(
-    modelSrc,
+    objectUrl.value,
     frameWidth,
     videoRef,
     canvasRef,
@@ -95,8 +86,8 @@ const openModal = async () => {
 const closeModal = () => {
   stopCameraFn?.();
 
-  // if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
-  // objectUrl.value = "";
+  if (objectUrl.value) URL.revokeObjectURL(objectUrl.value);
+  objectUrl.value = "";
 
   isOpen.value = false;
 };
@@ -223,7 +214,7 @@ const goToProductPage = () => {
         ></video>
         <canvas ref="canvasRef" class="absolute inset-0 w-full h-full"></canvas>
       </div>
-      <a-slider v-model:value="frameWidth" :min="0.8" :max="1" :step="0.01" />
+      <a-slider v-model:value="frameWidth" :min="1.1" :max="1.2" :step="0.01" />
       <div class="flex justify-between mt-2">
         <UButton
           @click="closeModal"
