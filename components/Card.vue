@@ -35,19 +35,9 @@ let animationFrameId: number;
 
 let renderer: THREE.WebGLRenderer;
 
-// Path to your 3D eyeglass model
-// const modelSrc = "/titanium_frame_glass.glb";
-// const modelSrc = "/TryOn_Eyeglasses.glb";
-const modelSrc = "/Ray Ban RB8352.glb";
-// const modelSrc = "/RB4287_TRYON11.glb";
-// const modelSrc = "/RB4287_TRYON.glb";
-
-// const modelSrc = "/scene.gltf";
-// const modelSrc = "/eyeglass (1).glb";
-
-// const modelSrc = "/try_on_eyeglass1.glb";
-// const { nodes } = await useGLTF("/titanium_frame_glass.glb", { draco: true });
-let frameWidth = ref<number>(1.15);
+// const modelSrc = "/Ray Ban RB8352.glb";
+const modelSrc = "/PolarizedGlareBlocking_SG.glb";
+let frameWidth = ref<number>(9.15);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
