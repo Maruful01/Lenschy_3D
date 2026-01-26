@@ -95,7 +95,7 @@ export function useVirtualTryOn(
     if (!videoWidth || !videoHeight) return;
 
     const cam = camera3d.value;
-    const distance = Math.abs(cam.position.z - VIDEO_PLANE_Z);
+    const distance = Math.abs(cam.position.z - videoPlane.value.position.z);
     const vFov = THREE.MathUtils.degToRad(cam.fov);
     const planeHeight = 2 * Math.tan(vFov / 2) * distance;
     const planeWidth = planeHeight * cam.aspect;
@@ -273,6 +273,10 @@ export function useVirtualTryOn(
     const obj = glassesContainer.value;
     if (!obj || !results.facialTransformationMatrixes?.length) {
       if (obj) obj.visible = false;
+      if (videoPlane.value && videoPlane.value.position.z !== VIDEO_PLANE_Z) {
+        videoPlane.value.position.z = VIDEO_PLANE_Z;
+        resizeVideoPlane();
+      }
       return;
     }
 
@@ -305,23 +309,12 @@ export function useVirtualTryOn(
 
     // 4. Implement Landmark-Driven Constraint System (Temples)
     const worldLandmarks = (results as any).faceWorldLandmarks?.[0];
-    if (
-      worldLandmarks &&
-      obj.userData.templeL &&
-      obj.userData.templeR &&
-      obj.userData.canonicalTempleLPos &&
-      obj.userData.canonicalTempleRPos
-    ) {
+    if (worldLandmarks) {
       const bridgeLM = worldLandmarks[168];
       const leftEarLM = worldLandmarks[234];
       const rightEarLM = worldLandmarks[454];
 
       if (bridgeLM && leftEarLM && rightEarLM) {
-        const tL = obj.userData.templeL;
-        const tR = obj.userData.templeR;
-        const canonL = obj.userData.canonicalTempleLPos;
-        const canonR = obj.userData.canonicalTempleRPos;
-
         // Target positions in face-local space (cm), bridge is origin
         const targetL = new THREE.Vector3(
           (leftEarLM.x - bridgeLM.x) * 100,
@@ -346,47 +339,74 @@ export function useVirtualTryOn(
           1 - SMOOTHING,
         );
 
-        // 2. Rotate Canonical Positions by Smoothed Yaw
-        // Optimization: Use scratch vectors _v1, _v2
-        const rotatedL = _v1
-          .copy(canonL)
-          .sub(BRIDGE_OFFSET)
-          .applyAxisAngle(_yAxis, _smoothedYaw);
-        const rotatedR = _v2
-          .copy(canonR)
-          .sub(BRIDGE_OFFSET)
-          .applyAxisAngle(_yAxis, _smoothedYaw);
-
-        // 3. Lateral Constraint (Green Line Rule)
-        // Left Temple constraint (handles side-crossing via rotatedL.x sign)
-        if (rotatedL.x < 0) {
-          if (targetL.x > rotatedL.x) targetL.x = rotatedL.x;
-        } else {
-          if (targetL.x < rotatedL.x) targetL.x = rotatedL.x;
+        // Dynamic Video Plane Z based on smoothed yaw
+        const YAW_THRESHOLD = 0.15;
+        const targetZ = Math.abs(_smoothedYaw) > YAW_THRESHOLD ? -30 : -100;
+        if (videoPlane.value && videoPlane.value.position.z !== targetZ) {
+          videoPlane.value.position.z = targetZ;
+          resizeVideoPlane();
         }
 
-        // Right Temple constraint
-        if (rotatedR.x > 0) {
-          if (targetR.x < rotatedR.x) targetR.x = rotatedR.x;
-        } else {
-          if (targetR.x > rotatedR.x) targetR.x = rotatedR.x;
+        // 2. Temple Constraint System
+        if (
+          obj.userData.templeL &&
+          obj.userData.templeR &&
+          obj.userData.canonicalTempleLPos &&
+          obj.userData.canonicalTempleRPos
+        ) {
+          const tL = obj.userData.templeL;
+          const tR = obj.userData.templeR;
+          const canonL = obj.userData.canonicalTempleLPos;
+          const canonR = obj.userData.canonicalTempleRPos;
+
+          // Rotate Canonical Positions by Smoothed Yaw
+          // Optimization: Use scratch vectors _v1, _v2
+          const rotatedL = _v1
+            .copy(canonL)
+            .sub(BRIDGE_OFFSET)
+            .applyAxisAngle(_yAxis, _smoothedYaw);
+          const rotatedR = _v2
+            .copy(canonR)
+            .sub(BRIDGE_OFFSET)
+            .applyAxisAngle(_yAxis, _smoothedYaw);
+
+          // 3. Lateral Constraint (Green Line Rule)
+          if (rotatedL.x < 0) {
+            if (targetL.x > rotatedL.x) targetL.x = rotatedL.x;
+          } else {
+            if (targetL.x < rotatedL.x) targetL.x = rotatedL.x;
+          }
+
+          if (rotatedR.x > 0) {
+            if (targetR.x < rotatedR.x) targetR.x = rotatedR.x;
+          } else {
+            if (targetR.x > rotatedR.x) targetR.x = rotatedR.x;
+          }
+
+          // Project targets into parent local space
+          obj.children[0].updateMatrixWorld(true);
+
+          // Map targets back from bridge-relative to face-center-relative space
+          const worldTargetL = obj.localToWorld(targetL.add(BRIDGE_OFFSET));
+          const localTargetL = tL.parent!.worldToLocal(worldTargetL);
+          tL.position.lerp(localTargetL, 1 - SMOOTHING);
+
+          const worldTargetR = obj.localToWorld(targetR.add(BRIDGE_OFFSET));
+          const localTargetR = tR.parent!.worldToLocal(worldTargetR);
+          tR.position.lerp(localTargetR, 1 - SMOOTHING);
         }
-
-        // Red Line Constraint (Vertical): Tie to ear height
-        // (Handled by using targetL.y and targetR.y directly)
-
-        // Project targets into parent local space
-        // We update model world matrix once to ensure accuracy for coordinate conversion
-        obj.children[0].updateMatrixWorld(true);
-
-        // Map targets back from bridge-relative to face-center-relative space
-        const worldTargetL = obj.localToWorld(targetL.add(BRIDGE_OFFSET));
-        const localTargetL = tL.parent!.worldToLocal(worldTargetL);
-        tL.position.lerp(localTargetL, 1 - SMOOTHING);
-
-        const worldTargetR = obj.localToWorld(targetR.add(BRIDGE_OFFSET));
-        const localTargetR = tR.parent!.worldToLocal(worldTargetR);
-        tR.position.lerp(localTargetR, 1 - SMOOTHING);
+      } else {
+        // Reset Z if landmarks are missing
+        if (videoPlane.value && videoPlane.value.position.z !== VIDEO_PLANE_Z) {
+          videoPlane.value.position.z = VIDEO_PLANE_Z;
+          resizeVideoPlane();
+        }
+      }
+    } else {
+      // Reset Z if no worldLandmarks
+      if (videoPlane.value && videoPlane.value.position.z !== VIDEO_PLANE_Z) {
+        videoPlane.value.position.z = VIDEO_PLANE_Z;
+        resizeVideoPlane();
       }
     }
   };
