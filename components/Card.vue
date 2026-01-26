@@ -36,7 +36,7 @@ let animationFrameId: number;
 let renderer: THREE.WebGLRenderer;
 
 // const modelSrc = "/Ray Ban RB8352.glb";
-const modelSrc = "/PolarizedGlareBlocking_SG.glb";
+const modelSrc = "/Rayban - RB 2157 K.glb";
 let frameWidth = ref<number>(9.15);
 
 const videoRef = ref<HTMLVideoElement | null>(null);
@@ -204,7 +204,7 @@ const goToProductPage = () => {
         ></video>
         <canvas ref="canvasRef" class="absolute inset-0 w-full h-full"></canvas>
       </div>
-      <a-slider v-model:value="frameWidth" :min="1.1" :max="1.2" :step="0.01" />
+      <a-slider v-model:value="frameWidth" :min="8.6" :max="9.5" :step="0.01" />
       <div class="flex justify-between mt-2">
         <UButton
           @click="closeModal"
