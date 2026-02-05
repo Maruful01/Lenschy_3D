@@ -13,8 +13,17 @@ import {
 const BRIDGE_OFFSET = new THREE.Vector3(0, 1.5, 0.05); // Adjust glasses fit on nose
 const SMOOTHING = 0.2; // 0 = no smoothing, 0.9 = heavy smoothing
 
+const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End";
+const GLTF_TEMPLE_RIGHT_NAME = "Temple_R_End";
+
 type GlassesUserData = {
   lastMatrix?: THREE.Matrix4;
+  templeL?: THREE.Object3D | null;
+  templeR?: THREE.Object3D | null;
+  initialTempleLPos?: THREE.Vector3;
+  initialTempleRPos?: THREE.Vector3;
+  canonicalTempleLPos?: THREE.Vector3;
+  canonicalTempleRPos?: THREE.Vector3;
 };
 
 export function useVirtualTryOn(
@@ -58,8 +67,9 @@ export function useVirtualTryOn(
       },
       runningMode: "VIDEO",
       outputFacialTransformationMatrixes: true,
+      outputFaceWorldLandmarks: true,
       numFaces: 1,
-    });
+    } as any);
   };
 
   const syncLayout = () => {
@@ -168,9 +178,41 @@ export function useVirtualTryOn(
       model.rotation.set(Math.PI, 0, Math.PI);
       model.position.add(BRIDGE_OFFSET);
 
-      const container = new THREE.Group() as any;
+      const container = (new THREE.Group() as any) as THREE.Group & {
+        userData: GlassesUserData;
+      };
+      container.userData = {};
       container.add(model);
       container.matrixAutoUpdate = false;
+
+      let templeL: any = null;
+      let templeR: any = null;
+
+      model.traverse((node: any) => {
+        if (node.name.includes(GLTF_TEMPLE_LEFT_NAME)) templeL = node;
+        if (node.name.includes(GLTF_TEMPLE_RIGHT_NAME)) templeR = node;
+      });
+
+      container.userData.templeL = templeL;
+      container.userData.templeR = templeR;
+
+      if (templeL) {
+        container.userData.initialTempleLPos = (templeL as any).position.clone();
+        model.updateMatrixWorld(true);
+        const pos = new THREE.Vector3();
+        (templeL as any).getWorldPosition(pos);
+        container.worldToLocal(pos);
+        container.userData.canonicalTempleLPos = pos;
+      }
+      if (templeR) {
+        container.userData.initialTempleRPos = (templeR as any).position.clone();
+        model.updateMatrixWorld(true);
+        const pos = new THREE.Vector3();
+        (templeR as any).getWorldPosition(pos);
+        container.worldToLocal(pos);
+        container.userData.canonicalTempleRPos = pos;
+      }
+
       s.add(container);
       glassesContainer.value = container;
       isModelReady.value = true;
@@ -247,8 +289,63 @@ export function useVirtualTryOn(
       obj.matrix.compose(_pos, _quat, _scale);
       obj.userData.lastMatrix.copy(obj.matrix);
     }
+    obj.updateMatrixWorld(true);
 
     obj.visible = true;
+
+    // 4. Implement Landmark-Driven Constraint System (Temples)
+    const worldLandmarks = (results as any).faceWorldLandmarks?.[0];
+    if (
+      worldLandmarks &&
+      obj.userData.templeL &&
+      obj.userData.templeR &&
+      obj.userData.canonicalTempleLPos &&
+      obj.userData.canonicalTempleRPos
+    ) {
+      const bridgeLM = worldLandmarks[168];
+      const leftEarLM = worldLandmarks[234];
+      const rightEarLM = worldLandmarks[454];
+
+      if (bridgeLM && leftEarLM && rightEarLM) {
+        const tL = obj.userData.templeL;
+        const tR = obj.userData.templeR;
+        const canonL = obj.userData.canonicalTempleLPos;
+        const canonR = obj.userData.canonicalTempleRPos;
+
+        // Target positions in face-local space (cm), bridge is origin
+        const targetL = new THREE.Vector3(
+          (leftEarLM.x - bridgeLM.x) * 100,
+          -(leftEarLM.y - bridgeLM.y) * 100,
+          -(leftEarLM.z - bridgeLM.z) * 100
+        );
+        const targetR = new THREE.Vector3(
+          (rightEarLM.x - bridgeLM.x) * 100,
+          -(rightEarLM.y - bridgeLM.y) * 100,
+          -(rightEarLM.z - bridgeLM.z) * 100
+        );
+
+        // Green Line Constraint (Lateral): No inward sliding
+        // Left (negative X): target.x must be at or outside (more negative than) canonical X
+        if (targetL.x > canonL.x) targetL.x = canonL.x;
+        // Right (positive X): target.x must be at or outside (more positive than) canonical X
+        if (targetR.x < canonR.x) targetR.x = canonR.x;
+
+        // Red Line Constraint (Vertical): Tie to ear height
+        // (Handled by using targetL.y and targetR.y directly)
+
+        // Project targets into parent local space
+        // We update model world matrix once to ensure accuracy for coordinate conversion
+        obj.children[0].updateMatrixWorld(true);
+
+        const worldTargetL = obj.localToWorld(targetL.clone());
+        const localTargetL = tL.parent!.worldToLocal(worldTargetL);
+        tL.position.lerp(localTargetL, 1 - SMOOTHING);
+
+        const worldTargetR = obj.localToWorld(targetR.clone());
+        const localTargetR = tR.parent!.worldToLocal(worldTargetR);
+        tR.position.lerp(localTargetR, 1 - SMOOTHING);
+      }
+    }
   };
 
   const startCamera = async () => {
