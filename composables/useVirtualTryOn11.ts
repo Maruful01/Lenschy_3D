@@ -1,6 +1,10 @@
 import { ref, shallowRef, type Ref, onUnmounted } from "vue";
 import * as cam from "@mediapipe/camera_utils";
-import faceMeshModule from "@mediapipe/face_mesh";
+import {
+  FaceLandmarker,
+  FilesetResolver,
+  type FaceLandmarkerResult,
+} from "@mediapipe/tasks-vision";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
@@ -10,34 +14,11 @@ interface Landmark {
   z: number;
 }
 
-const { FaceMesh } = faceMeshModule as any;
-
-const LANDMARKS = {
-  NOSE_BRIDGE: 168,
-  FOREHEAD: 10,
-  LEFT_EAR: 234,
-  RIGHT_EAR: 454,
-  LEFT_EYE_OUTER: 263,
-  RIGHT_EYE_OUTER: 33,
-};
-
-const PLANE_WIDTH = 16;
-const PLANE_Z = -5;
-
-const DEPTH_SCALE_BASE = 40;
-const MODEL_Z_SHIFT_BASE = -0.9;
-
-const SCALE_FROM_EAR_K = 0.23;
-const SCALE_FROM_EYE_K = 0.2;
-
-const BRIDGE_OFFSET = new THREE.Vector3(0, -1, 0);
+const BRIDGE_OFFSET = new THREE.Vector3(0, 1.01, 0.05);
 const SMOOTHING = 0.25;
 
 const GLTF_TEMPLE_LEFT_NAME = "Temple_L_End";
 const GLTF_TEMPLE_RIGHT_NAME = "Temple_R_End";
-
-const DEPTH_REF_FALLBACK = 0.12;
-const clamp = (v: number, a: number, b: number) => Math.min(b, Math.max(a, v));
 
 type GlassesUserData = {
   prev?: { pos: THREE.Vector3; quat: THREE.Quaternion; scale: number };
@@ -54,20 +35,18 @@ export function useVirtualTryOn(
   const cameraRef = ref<cam.Camera | null>(null);
   const lastError = ref<string | null>(null);
 
+  const _pos = new THREE.Vector3();
+  const _quat = new THREE.Quaternion();
+  const _scale = new THREE.Vector3();
+  const _targetPos = new THREE.Vector3();
+  const _targetQuat = new THREE.Quaternion();
+  const _targetScale = new THREE.Vector3();
+
   let renderer: THREE.WebGLRenderer | null = null;
   let scene: THREE.Scene | null = null;
   let camera3d: THREE.PerspectiveCamera | null = null;
   let rafId = 0;
-  let faceMesh: any | null = null;
-
-  let depthRefRuntime = DEPTH_REF_FALLBACK;
-  let depthRefReady = false;
-
-  let planeH = 9;
-  let cropX0 = 0,
-    cropY0 = 0,
-    cropW = 1,
-    cropH = 1;
+  let faceLandmarker: FaceLandmarker | null = null;
 
   const glassesContainer = shallowRef<
     (THREE.Group & { userData: GlassesUserData }) | null
@@ -85,29 +64,6 @@ export function useVirtualTryOn(
       h: Math.max(1, r?.height ?? host?.clientHeight ?? 1),
     };
   };
-
-  const getSizeT = () => {
-    const { w } = getHostRect();
-    return clamp((w - 360) / (900 - 360), 0, 1);
-  };
-
-  const getDepthScale = (depthNorm: number) => {
-    const t = getSizeT();
-    const base = DEPTH_SCALE_BASE * (0.72 + 0.28 * t);
-    return base / depthNorm;
-  };
-
-  const getModelZShift = () => {
-    const t = getSizeT();
-    return MODEL_Z_SHIFT_BASE - (1 - t) * 0.25;
-  };
-
-  const getYawBoostMax = () => {
-    const t = getSizeT();
-    return 0.12 + 0.13 * t;
-  };
-
-  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
   const waitForRefs = async (maxMs = 1200) => {
     const start = performance.now();
@@ -151,21 +107,6 @@ export function useVirtualTryOn(
     }
   };
 
-  const toPx = (L: Landmark[], i: number, vw: number, vh: number) =>
-    new THREE.Vector3(L[i].x * vw, L[i].y * vh, L[i].z);
-
-  const pxToWorld = (xPx: number, yPx: number) => {
-    const x = ((xPx - cropX0) / cropW - 0.5) * PLANE_WIDTH;
-    const y = (0.5 - (yPx - cropY0) / cropH) * planeH;
-    return new THREE.Vector3(x, y, 0);
-  };
-
-  const toWorld3D = (ptPx: THREE.Vector3) => {
-    const xy = pxToWorld(ptPx.x, ptPx.y);
-    const z = ptPx.z * PLANE_WIDTH * -0.6;
-    return new THREE.Vector3(xy.x, xy.y, z);
-  };
-
   let lastLayoutSync = 0;
   const syncLayout = (force = false) => {
     const now = performance.now();
@@ -180,31 +121,11 @@ export function useVirtualTryOn(
     if (!vw || !vh) return;
 
     const { w: viewW, h: viewH } = getHostRect();
-    const Ac = viewW / viewH;
-    const Av = vw / vh;
-
-    planeH = PLANE_WIDTH / Ac;
-
-    if (Av > Ac) {
-      const rx = Ac / Av;
-      cropX0 = (vw - vw * rx) / 2;
-      cropY0 = 0;
-      cropW = vw * rx;
-      cropH = vh;
-    } else {
-      const ry = Av / Ac;
-      cropX0 = 0;
-      cropY0 = (vh - vh * ry) / 2;
-      cropW = vw;
-      cropH = vh * ry;
-    }
 
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(viewW, viewH, false);
 
     camera3d.aspect = viewW / viewH;
-    const t = getSizeT();
-    camera3d.fov = 52 - 7 * t;
     camera3d.updateProjectionMatrix();
   };
 
@@ -223,9 +144,8 @@ export function useVirtualTryOn(
     scene = new THREE.Scene();
 
     const { w, h } = getHostRect();
-    camera3d = new THREE.PerspectiveCamera(45, w / h, 0.01, 1000);
-    camera3d.position.set(0, 0, 5);
-    camera3d.lookAt(new THREE.Vector3(0, 0, PLANE_Z));
+    camera3d = new THREE.PerspectiveCamera(63, w / h, 0.1, 1000);
+    camera3d.position.set(0, 0, 0);
 
     scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.0));
     const dir = new THREE.DirectionalLight(0xffffff, 1.2);
@@ -235,6 +155,7 @@ export function useVirtualTryOn(
     const loader = new GLTFLoader();
     loader.load(glassesModelSrc, (gltf) => {
       const model = gltf.scene;
+      model.rotation.set(Math.PI, 0, Math.PI);
       model.position.add(BRIDGE_OFFSET);
 
       const container = new THREE.Group() as THREE.Group & {
@@ -242,6 +163,7 @@ export function useVirtualTryOn(
       };
       container.userData = {};
       container.add(model);
+      container.matrixAutoUpdate = false;
       container.visible = false;
 
       let templeL: THREE.Object3D | null = null;
@@ -277,111 +199,63 @@ export function useVirtualTryOn(
     syncLayout(true);
   };
 
-  const onResults = (results: any) => {
+  const onResults = (results: FaceLandmarkerResult) => {
     const videoEl = videoRef.value;
     const obj = glassesContainer.value;
     if (!obj || !videoEl) return;
 
-    const faces = results?.multiFaceLandmarks;
-    if (!faces?.[0]) {
+    if (
+      !results.faceLandmarks?.[0] ||
+      !results.facialTransformationMatrixes?.[0]
+    ) {
       obj.visible = false;
       return;
     }
 
-    const vw = videoEl.videoWidth;
-    const vh = videoEl.videoHeight;
-    if (!vw || !vh) return;
-
     syncLayout(false);
 
-    const L = faces[0];
+    const matrixData = results.facialTransformationMatrixes[0].data;
+    const targetMatrix = new THREE.Matrix4().fromArray(matrixData);
 
-    const leftEyeOuter = toPx(L, LANDMARKS.LEFT_EYE_OUTER, vw, vh);
-    const rightEyeOuter = toPx(L, LANDMARKS.RIGHT_EYE_OUTER, vw, vh);
-    const noseBridge = toPx(L, LANDMARKS.NOSE_BRIDGE, vw, vh);
-    const forehead = toPx(L, LANDMARKS.FOREHEAD, vw, vh);
-    const leftEar = toPx(L, LANDMARKS.LEFT_EAR, vw, vh);
-    const rightEar = toPx(L, LANDMARKS.RIGHT_EAR, vw, vh);
+    // 1. Handedness Correction (MediaPipe -> Three.js)
+    // MediaPipe uses a right-handed system with Z forward, Three.js uses Z back.
+    const flipZ = new THREE.Matrix4().makeScale(1, 1, -1);
+    targetMatrix.multiply(flipZ);
 
-    const earDistPx = Math.hypot(
-      rightEar.x - leftEar.x,
-      rightEar.y - leftEar.y,
-    );
-    const eyeDistPx = Math.hypot(
-      rightEyeOuter.x - leftEyeOuter.x,
-      rightEyeOuter.y - leftEyeOuter.y,
-    );
+    // 2. Decompose the incoming target matrix
+    targetMatrix.decompose(_targetPos, _targetQuat, _targetScale);
 
-    const faceDepth = Math.abs(
-      L[LANDMARKS.NOSE_BRIDGE].z - L[LANDMARKS.FOREHEAD].z,
-    );
-    if (!depthRefReady && faceDepth > 0.0001) {
-      depthRefRuntime = faceDepth;
-      depthRefReady = true;
-    } else if (faceDepth > 0.0001) {
-      depthRefRuntime = depthRefRuntime * 0.98 + faceDepth * 0.02;
-    }
-
-    const depthRef = clamp(depthRefRuntime, 0.06, 0.22);
-    const depthNorm = clamp(faceDepth / depthRef, 0.75, 1.35);
-
-    const pxToWorldEar = (PLANE_WIDTH / vw) * SCALE_FROM_EAR_K;
-    const pxToWorldEye = (PLANE_WIDTH / vw) * SCALE_FROM_EYE_K;
-    const combinedDist = earDistPx * 0.7 + eyeDistPx * 0.3;
-
-    const baseScale =
-      combinedDist *
-      (pxToWorldEar * 0.7 + pxToWorldEye * 0.3) *
-      frameWidth.value;
-
-    const desiredScale = baseScale / depthNorm;
-
-    const pLEar = toWorld3D(leftEar);
-    const pREar = toWorld3D(rightEar);
-    const pF = toWorld3D(forehead);
-    const pN = toWorld3D(noseBridge);
-
-    const xAxis = new THREE.Vector3().subVectors(pREar, pLEar).normalize();
-    const yAxis = new THREE.Vector3().subVectors(pF, pN).normalize();
-    const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
-
-    const basis = new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis);
-    const targetQuat = new THREE.Quaternion().setFromRotationMatrix(basis);
-
-    const yawBoostMax = getYawBoostMax();
-    const yawRad = Math.atan2(pREar.z - pLEar.z, pREar.x - pLEar.x);
-    const yawAbs = Math.min(Math.abs(yawRad), Math.PI / 4);
-    const yawFactor = 1 + yawBoostMax * (yawAbs / (Math.PI / 4));
-
-    const finalScale = desiredScale * yawFactor;
-
-    const bridgeWorld = pxToWorld(noseBridge.x, noseBridge.y);
-    const depthScale = getDepthScale(depthNorm);
-    const positionZ = PLANE_Z + getModelZShift() + noseBridge.z * depthScale;
-
-    const targetPos = new THREE.Vector3(
-      bridgeWorld.x,
-      bridgeWorld.y,
-      positionZ,
-    );
+    // 3. Eyeglasses frame width adjustment
+    // Using a base scale multiplier to match the previous system's feel
+    _targetScale.multiplyScalar(frameWidth.value * 1.0);
 
     if (!obj.userData.prev) {
+      // First frame: apply immediately
       obj.userData.prev = {
-        pos: targetPos.clone(),
-        quat: targetQuat.clone(),
-        scale: finalScale,
+        pos: _targetPos.clone(),
+        quat: _targetQuat.clone(),
+        scale: _targetScale.x, // Assuming uniform scale
       };
-      obj.position.copy(targetPos);
-      obj.quaternion.copy(targetQuat);
-      obj.scale.setScalar(finalScale);
+      obj.matrix.compose(_targetPos, _targetQuat, _targetScale);
+      obj.updateMatrixWorld(true);
     } else {
       const prev = obj.userData.prev;
-      obj.position.lerpVectors(prev.pos, targetPos, 1 - SMOOTHING);
-      obj.quaternion.slerpQuaternions(prev.quat, targetQuat, 1 - SMOOTHING);
-      const s = prev.scale * SMOOTHING + finalScale * (1 - SMOOTHING);
-      obj.scale.setScalar(s);
-      prev.pos.copy(obj.position);
-      prev.quat.copy(obj.quaternion);
+
+      // 4. Interpolate components for smoothing
+      _pos.lerpVectors(prev.pos, _targetPos, 1 - SMOOTHING);
+      _quat.slerpQuaternions(prev.quat, _targetQuat, 1 - SMOOTHING);
+
+      // Scale: Using the x component for uniform scaling
+      const s = prev.scale * SMOOTHING + _targetScale.x * (1 - SMOOTHING);
+      _scale.setScalar(s);
+
+      // 5. Recompose into the object's matrix
+      obj.matrix.compose(_pos, _quat, _scale);
+      obj.updateMatrixWorld(true);
+
+      // Save state for the next frame
+      prev.pos.copy(_pos);
+      prev.quat.copy(_quat);
       prev.scale = s;
     }
 
@@ -392,61 +266,77 @@ export function useVirtualTryOn(
     if (import.meta.server) return;
     lastError.value = null;
 
-    const ok = await waitForRefs();
-    if (!ok) return;
+    try {
+      const ok = await waitForRefs();
+      if (!ok) throw new Error("Video/Canvas refs not ready");
 
-    const videoEl = videoRef.value!;
-    ensureOverlayStyles();
+      const videoEl = videoRef.value!;
+      ensureOverlayStyles();
 
-    if (!renderer) await initThree();
+      if (!renderer) await initThree();
 
-    const prevStream = videoEl.srcObject as MediaStream | null;
-    prevStream?.getTracks().forEach((t) => t.stop());
+      const prevStream = videoEl.srcObject as MediaStream | null;
+      prevStream?.getTracks().forEach((t) => t.stop());
 
-    depthRefRuntime = DEPTH_REF_FALLBACK;
-    depthRefReady = false;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "user",
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+        },
+        audio: false,
+      });
 
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "user",
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-      },
-      audio: false,
-    });
+      videoEl.srcObject = stream;
+      await videoEl.play();
 
-    videoEl.srcObject = stream;
-    await videoEl.play();
+      await new Promise<void>((r) =>
+        videoEl.videoWidth
+          ? r()
+          : videoEl.addEventListener("loadedmetadata", () => r(), {
+              once: true,
+            }),
+      );
 
-    await new Promise<void>((r) =>
-      videoEl.videoWidth
-        ? r()
-        : videoEl.addEventListener("loadedmetadata", () => r(), { once: true }),
-    );
+      syncLayout(true);
 
-    syncLayout(true);
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision/wasm",
+      );
+      faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task`,
+          delegate: "GPU",
+        },
+        outputFaceBlendshapes: true,
+        outputFacialTransformationMatrixes: true,
+        runningMode: "VIDEO",
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.6,
+        minFacePresenceConfidence: 0.6,
+        minTrackingConfidence: 0.6,
+      });
 
-    faceMesh = new FaceMesh({
-      locateFile: (f: string) =>
-        `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${f}`,
-    });
+      cameraRef.value = new cam.Camera(videoEl, {
+        onFrame: async () => {
+          if (faceLandmarker && videoEl.readyState >= 2) {
+            const results = faceLandmarker.detectForVideo(
+              videoEl,
+              performance.now(),
+            );
+            onResults(results);
+          }
+        },
+        width: videoEl.videoWidth,
+        height: videoEl.videoHeight,
+      });
 
-    faceMesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6,
-    });
-
-    faceMesh.onResults(onResults);
-
-    cameraRef.value = new cam.Camera(videoEl, {
-      onFrame: async () => faceMesh && faceMesh.send({ image: videoEl }),
-      width: videoEl.videoWidth,
-      height: videoEl.videoHeight,
-    });
-
-    cameraRef.value.start();
+      cameraRef.value.start();
+    } catch (e: any) {
+      console.error("[useVirtualTryOn11] startCamera failed:", e);
+      lastError.value = e?.message ?? String(e);
+      stopCamera();
+    }
   };
 
   const stopCamera = () => {
@@ -458,8 +348,8 @@ export function useVirtualTryOn(
     if (videoRef.value) videoRef.value.srcObject = null;
 
     glassesContainer.value && (glassesContainer.value.visible = false);
-    faceMesh?.close?.();
-    faceMesh = null;
+    faceLandmarker?.close?.();
+    faceLandmarker = null;
   };
 
   onUnmounted(() => {
