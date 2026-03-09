@@ -37,7 +37,7 @@ import { ref, onUnmounted, computed } from "vue";
 import { TresCanvas } from "@tresjs/core";
 import { VideoTexture } from "three";
 import * as THREE from "three";
-import { useVirtualTryOn } from "@/composables/useVirtualTryOn";
+import { useVirtualTryOn } from "@/composables/useVirtualTryOn.client";
 
 // Path to your 3D eyeglass model
 const modelSrc = "/titanium_frame_glass.glb";

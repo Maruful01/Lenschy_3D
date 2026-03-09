@@ -67,7 +67,7 @@ export const useIdentifyImage = (
 
   // The simplified and updatable prompt for the AI model
   const SIMPLE_AI_PROMPT = `
-  ${process.env.NUXT_PUBLIC_AI_PROMPT}
+  ${config.public.AI_PROMPT}
 {
   "face_shape": "Determine the general face shape (e.g., Oval, Round, Square, Heart, Diamond, Oblong)",
   "gender": "Identify the gender (e.g., Male, Female)",

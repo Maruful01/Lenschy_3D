@@ -97,7 +97,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, onBeforeUnmount, computed, watch } from "vue";
-import { useCamera } from "@/composables/useCamera";
+import { useCamera } from "@/composables/useCamera.client";
 import * as cam from "@mediapipe/camera_utils";
 import pkg_drawing_utils from "@mediapipe/drawing_utils";
 const { drawConnectors, drawLandmarks } = pkg_drawing_utils;

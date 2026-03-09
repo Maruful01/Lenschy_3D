@@ -4,11 +4,11 @@ import { navigateTo } from "#app";
 import { getAppwriteGLBBlobURL, getAppwriteGLBURL, slugify } from "~/constants"; // Using namespace import for SSR safety
 import { VideoTexture } from "three";
 // import { useVirtualTryOn } from "@/composables/virtualGlasses";
-// import { useVirtualTryOn } from "@/composables/useVrTryon";
-import { useVirtualTryOn } from "@/composables/useVertiulTryOn24";
-// import { useVirtualTryOn } from "@/composables/useVirtualTryOn7.client";
+// import { useVirtualTryOn } from "@/composables/useVrTryon.client";
+import { useVirtualTryOn } from "@/composables/useVertiulTryOn24.client";
+// import { useVirtualTryOn } from "@/composables/useVirtualTryOn.client7.client";
 
-// import { useVirtualTryOn } from "@/composables/useVirtualTryOn20";
+// import { useVirtualTryOn } from "@/composables/useVirtualTryOn.client20";
 // import { TresCanvas } from "@tresjs/core";
 import * as THREE from "three";
 // import { useGLTF } from "@tresjs/cientos";

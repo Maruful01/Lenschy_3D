@@ -60,7 +60,7 @@
 
 <script setup lang="ts">
 import { ref, defineProps, nextTick, onBeforeUnmount } from "vue";
-import { useMediaPipe } from "@/composables/mdiaPipeCm";
+import { useMediaPipe } from "@/composables/mdiaPipeCm.client";
 import { useCartStore } from "~/stores/cart";
 import { navigateTo } from "#app";
 import { slugify } from "~/constants";
