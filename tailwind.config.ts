@@ -13,9 +13,15 @@ export default <Config>{
   ],
   theme: {
     extend: {
+      fontFamily: {
+        inter: ["Inter", "sans-serif"],
+        sora: ["Sora", "sans-serif"],
+        code: ["Source Code Pro", "monospace"],
+        grotesk: ["Space Grotesk", "sans-serif"],
+      },
       colors: {
         "n-1": "#FFFFFF",
-        "n-8": "#121212",  // Define your custom background color
+        "n-8": "#121212", // Define your custom background color
         "n-6": "#444444",
         "n-7": "#222222",
         "stroke-1": "#555555",

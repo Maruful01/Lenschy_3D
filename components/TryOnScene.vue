@@ -7,7 +7,7 @@ import {
 } from "vue";
 import { navigateTo } from "#app";
 import { slugify } from "~/constants";
-import { useVirtualTryOn } from "@/composables/useVrTryon";
+import { useVirtualTryOn } from "@/composables/useVrTryon.client";
 
 // --- TresJS and Three.js Imports ---
 import { TresCanvas } from "@tresjs/core";
