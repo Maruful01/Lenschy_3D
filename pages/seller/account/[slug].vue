@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import SellerSidebar from '~/components/seller/SellerSidebar.vue'
-import SellerNavbar from '~/components/seller/SellerNavbar.vue'
-import SellerDashboard from '~/components/seller/SellerDashboard.vue'
-import SellerProductTable from '~/components/seller/SellerProductTable.vue'
-import SellerProductModals from '~/components/seller/SellerProductModals.vue'
+import Sidebar from '~/components/seller/Sidebar.vue'
+import Navbar from '~/components/seller/Navbar.vue'
+import Dashboard from '~/components/seller/Dashboard.vue'
+import ProductTable from '~/components/seller/ProductTable.vue'
+import ProductModals from '~/components/seller/ProductModals.vue'
 
 definePageMeta({
   layout: false
@@ -129,7 +129,7 @@ const pageTitle = computed(() => {
 <template>
   <div class="min-h-screen bg-gray-50 flex overflow-hidden font-sans antialiased text-gray-900">
     <!-- Sidebar Component -->
-    <SellerSidebar
+    <Sidebar
       v-model:currentTab="currentTab"
       v-model:isMobileSidebarOpen="isMobileSidebarOpen"
       :isSidebarCollapsed="isSidebarCollapsed"
@@ -140,7 +140,7 @@ const pageTitle = computed(() => {
     <!-- Main Content -->
     <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
       <!-- Navbar Component -->
-      <SellerNavbar
+      <Navbar
         :pageTitle="pageTitle"
         :sellerName="sellerName"
         :userId="userId"
@@ -152,7 +152,7 @@ const pageTitle = computed(() => {
       <!-- Scrollable Content Area -->
       <main class="flex-1 overflow-y-auto p-4 lg:p-8 custom-scrollbar bg-gray-50/50">
         <!-- Dashboard View -->
-        <SellerDashboard
+        <Dashboard
           v-if="currentTab === 'dashboard'"
           :stats="stats"
           :orders="orders"
@@ -161,7 +161,7 @@ const pageTitle = computed(() => {
         />
 
         <!-- Products View -->
-        <SellerProductTable
+        <ProductTable
           v-if="currentTab === 'products'"
           :products="products"
           v-model:searchQuery="searchQuery"
@@ -183,7 +183,7 @@ const pageTitle = computed(() => {
     </div>
 
     <!-- Modals Component -->
-    <SellerProductModals
+    <ProductModals
       v-model:isAddProductModalOpen="isAddProductModalOpen"
       v-model:isEditProductModalOpen="isEditProductModalOpen"
       :newProduct="newProduct"
@@ -193,14 +193,3 @@ const pageTitle = computed(() => {
     />
   </div>
 </template>
-
-<style scoped>
-@keyframes slide-in-bottom {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-
-.animate-in {
-  animation: slide-in-bottom 0.5s ease-out forwards;
-}
-</style>

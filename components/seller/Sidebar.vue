@@ -16,10 +16,6 @@ const navigate = (tab: string) => {
   emit('update:currentTab', tab)
   emit('update:isMobileSidebarOpen', false)
 }
-
-const openAddProduct = () => {
-  emit('openAddProduct')
-}
 </script>
 
 <template>
@@ -61,7 +57,7 @@ const openAddProduct = () => {
         </button>
 
         <button
-          @click="openAddProduct"
+          @click="$emit('openAddProduct')"
           class="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all duration-200 group text-gray-500 hover:bg-gray-50 hover:text-gray-800"
         >
           <UIcon name="i-heroicons-plus-circle" class="w-5 h-5 shrink-0" />
@@ -131,7 +127,7 @@ const openAddProduct = () => {
         <button @click="navigate('products')" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all" :class="[currentTab === 'products' ? 'bg-red-50 text-[#fc1919] font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50']">
           <UIcon name="i-heroicons-shopping-bag" class="w-6 h-6" /> <span>Products</span>
         </button>
-        <button @click="openAddProduct" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-gray-600 hover:bg-gray-50">
+        <button @click="$emit('openAddProduct')" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-gray-600 hover:bg-gray-50">
           <UIcon name="i-heroicons-plus-circle" class="w-6 h-6" /> <span>Add Product</span>
         </button>
         <button @click="navigate('orders')" class="w-full flex items-center gap-4 p-4 rounded-xl transition-all" :class="[currentTab === 'orders' ? 'bg-red-50 text-[#fc1919] font-bold shadow-sm' : 'text-gray-600 hover:bg-gray-50']">
