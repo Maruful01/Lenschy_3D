@@ -11,31 +11,62 @@ import {
 } from "@ant-design/icons-vue";
 import { NuxtLink } from "#components";
 import { useCartStore } from "~/stores/cart";
-import {
-  SignedIn,
-  SignedOut,
-  SignInButton,
-  UserButton,
-} from "@clerk/nuxt/components";
-import { useUser } from "@clerk/vue";
-const { isLoaded, isSignedIn, user } = useUser();
+import type { Account } from "appwrite";
 const cartStore = useCartStore();
 onMounted(() => {
   cartStore.loadFromLocal();
 });
 
+import type { Models } from "appwrite";
+
+type AppwriteUser = Models.User<Models.Preferences>;
+
+const loggedInUser = useState<AppwriteUser | null>("user", () => null);
+
+const nuxtApp = useNuxtApp();
+const account = nuxtApp.$account as unknown as Account;
+
+onMounted(async () => {
+  try {
+    loggedInUser.value = await account.get();
+  } catch {
+    loggedInUser.value = null;
+  }
+});
+
 const isMobileMenuOpen = ref(false);
 
-const open = ref<boolean>(false);
+const open = ref(false);
 provide("modalOpen", open);
 
 const showModal = () => {
   open.value = true;
 };
 
-const handleOk = (e: MouseEvent) => {
-  console.log(e);
+const handleOk = () => {
   open.value = false;
+};
+
+const currentTab = ref("dashboard");
+const navigate = (tab: string) => {
+  currentTab.value = tab;
+  isMobileMenuOpen.value = false;
+};
+
+const logout = async () => {
+  try {
+    await account.deleteSession("current");
+    loggedInUser.value = null;
+    isMobileMenuOpen.value = false;
+  } catch (error) {
+    console.error("Logout failed:", error);
+  }
+};
+
+const openAddProduct = () => {
+  // Logic to open add product modal or navigate
+  console.log("Open Add Product");
+  isMobileMenuOpen.value = false;
 };
 </script>
 
@@ -56,16 +87,21 @@ const handleOk = (e: MouseEvent) => {
         <div
           class="navbar_top_right flex items-center gap-2 sm:gap-4 text-white text-xs sm:text-sm"
         >
-          <select
+          <!-- <select
             class="h-[28px] sm:h-[30px] text-blue-300 text-xs sm:text-sm font-inter font-normal bg-transparent"
           >
             <option>eng</option>
             <option>bangla</option>
-          </select>
-          <button class="font-inter font-normal capitalize">Faqs</button>
-          <button class="flex items-center font-inter font-normal capitalize">
-            Need help
-          </button>
+          </select> -->
+          <!-- <button class="font-inter font-normal capitalize">Faqs</button> -->
+          <NuxtLink
+            class="cursor-pointer hover:text-gray-200"
+            to="/seller/account"
+          >
+            <button class="flex items-center font-inter font-normal capitalize">
+              Sell Online
+            </button>
+          </NuxtLink>
         </div>
       </div>
     </div>
@@ -113,7 +149,6 @@ const handleOk = (e: MouseEvent) => {
         <MenuOutlined class="text-2xl" />
       </button>
     </div>
-
     <!-- Bottom Navbar -->
     <div
       class="navbar_bottom flex items-center justify-center w-full h-[55px] border-b border-[#e1e3e5]"
@@ -133,95 +168,151 @@ const handleOk = (e: MouseEvent) => {
                 @click="showModal"
               >
                 <ShoppingCartOutlined /> Cart
-                <div
-                  v-if="isSignedIn"
-                  class="badge badge-sm bg-teal-500 text-white"
-                >
+                <div class="badge badge-sm text-sm text-red-600">
                   {{ cartStore.cartCount ? cartStore.cartCount : 0 }}
                 </div>
               </button>
             </NuxtLink>
-
-            <ClientOnly>
-              <SignedIn>
-                <UserButton />
-              </SignedIn>
-              <SignedOut>
-                <SignInButton>
-                  <div class="dropdown relative">
-                    <div
-                      class="btn bg-slate-50 cursor-pointer font-semibold text-teal-500"
-                    >
-                      <UserOutlined />
-                    </div>
-                  </div>
-                </SignInButton>
-              </SignedOut>
-            </ClientOnly>
+            <div class="dropdown relative">
+              <NuxtLink to="/account">
+                <div
+                  class="btn bg-slate-50 cursor-pointer font-semibold text-teal-500"
+                >
+                  <UserOutlined />
+                  <!-- <UserOutlined v-if="!loggedInUser || !loggedInUser.email" />
+                  <p v-else>{{ loggedInUser.email }}</p> -->
+                </div>
+              </NuxtLink>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Mobile Slide Menu -->
-    <transition name="slide-fade">
-      <div
-        v-if="isMobileMenuOpen"
-        class="fixed inset-0 z-10"
-        @click.self="isMobileMenuOpen = false"
-      >
-        <!-- Dimmed background overlay -->
-        <div
-          class="absolute inset-0 transition-opacity duration-300"
-          @click.self="isMobileMenuOpen = false"
-        ></div>
+    <!-- Mobile Sidebar Drawer -->
+    <div
+      v-if="isMobileMenuOpen"
+      class="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
+      @click="isMobileMenuOpen = false"
+    ></div>
 
-        <!-- Drawer that slides from the right -->
+    <aside
+      class="fixed top-0 left-0 h-full w-72 bg-white z-50 transform transition-transform duration-300 ease-in-out lg:hidden shadow-2xl"
+      :class="[isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full']"
+    >
+      <div class="p-6 flex items-center gap-3 border-b border-gray-100 h-[72px]">
         <div
-          class="absolute left-0 h-full w-3/4 max-w-xs bg-gray-200 p-6 shadow-lg transition-transform duration-300"
-          @click.stop
+          class="w-10 h-10 bg-teal-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-lg shadow-red-200"
         >
-          <button
-            v-if="isMobileMenuOpen"
-            class="md:hidden block text-teal-600 mr-5 mb-5 ml-1"
-            @click="isMobileMenuOpen = false"
-          >
-            <CloseOutlined class="text-2xl text-teal-500" />
-          </button>
-          <!-- Search -->
-          <div class="search_box mb-4">
-            <form action="#" class="max-w-[443px] h-[44px] relative">
-              <input
-                type="text"
-                placeholder="Search here..."
-                class="w-full h-full bg-white rounded-lg pl-4"
-              />
-              <button
-                class="absolute top-1/2 right-4 -translate-y-1/2 transform"
-              >
-                <SearchOutlined
-                  class="text-lg text-gray-800 hover:text-gray-500"
-                />
-              </button>
-            </form>
-          </div>
-
-          <!-- Menu Items -->
-          <ul class="space-y-4">
-            <li v-for="item in navigation" :key="item.id">
-              <a
-                :href="item.url"
-                class="block text-gray-800 hover:text-blue-600 text-lg"
-              >
-                {{ item.title }}
-              </a>
-            </li>
-          </ul>
-
-          <!-- Login / Sign up -->
+          <UIcon
+            name="i-heroicons-building-storefront"
+            class="w-6 h-6 text-white"
+          />
         </div>
+        <div class="flex-1">
+          <h2 class="font-black text-gray-800 tracking-tight">EVDesign</h2>
+          <p
+            class="text-[10px] text-gray-400 font-black uppercase tracking-widest"
+          >
+            Seller Panel
+          </p>
+        </div>
+        <button
+          @click="isMobileMenuOpen = false"
+          class="p-2 hover:bg-gray-100 rounded-full transition-colors"
+        >
+          <UIcon name="i-heroicons-x-mark" class="w-6 h-6 text-gray-500" />
+        </button>
       </div>
-    </transition>
+
+      <nav
+        class="p-4 space-y-1 overflow-y-auto h-[calc(100%-144px)] custom-scrollbar"
+      >
+        <!-- Search -->
+        <div class="search_box mb-4">
+          <form action="#" class="relative">
+            <input
+              type="text"
+              placeholder="Search here..."
+              class="w-full h-10 bg-gray-50 rounded-lg pl-4 pr-10 border border-gray-100"
+            />
+            <button class="absolute top-1/2 right-3 -translate-y-1/2 transform">
+              <SearchOutlined
+                class="text-lg text-gray-400 hover:text-gray-500"
+              />
+            </button>
+          </form>
+        </div>
+
+        <button
+          @click="navigate('dashboard')"
+          class="w-full flex items-center gap-4 p-4 rounded-xl transition-all"
+          :class="[
+            currentTab === 'dashboard'
+              ? 'bg-red-50 text-teal-500 font-bold shadow-sm'
+              : 'text-gray-600 hover:bg-gray-50',
+          ]"
+        >
+          <UIcon name="i-heroicons-home" class="w-6 h-6" />
+          <span>Dashboard</span>
+        </button>
+        <button
+          @click="navigate('products')"
+          class="w-full flex items-center gap-4 p-4 rounded-xl transition-all"
+          :class="[
+            currentTab === 'products'
+              ? 'bg-red-50 text-teal-500 font-bold shadow-sm'
+              : 'text-gray-600 hover:bg-gray-50',
+          ]"
+        >
+          <UIcon name="i-heroicons-shopping-bag" class="w-6 h-6" />
+          <span>Products</span>
+        </button>
+        <button
+          @click="openAddProduct"
+          class="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-gray-600 hover:bg-gray-50"
+        >
+          <UIcon name="i-heroicons-plus-circle" class="w-6 h-6" />
+          <span>Add Product</span>
+        </button>
+        <button
+          @click="navigate('orders')"
+          class="w-full flex items-center gap-4 p-4 rounded-xl transition-all"
+          :class="[
+            currentTab === 'orders'
+              ? 'bg-red-50 text-teal-500 font-bold shadow-sm'
+              : 'text-gray-600 hover:bg-gray-50',
+          ]"
+        >
+          <UIcon name="i-heroicons-shopping-cart" class="w-6 h-6" />
+          <span>Orders</span>
+        </button>
+        <button
+          @click="navigate('analytics')"
+          class="w-full flex items-center gap-4 p-4 rounded-xl transition-all"
+          :class="[
+            currentTab === 'analytics'
+              ? 'bg-red-50 text-teal-500 font-bold shadow-sm'
+              : 'text-gray-600 hover:bg-gray-50',
+          ]"
+        >
+          <UIcon name="i-heroicons-chart-bar" class="w-6 h-6" />
+          <span>Analytics</span>
+        </button>
+      </nav>
+
+      <div
+        class="p-4 border-t border-gray-100 absolute bottom-0 w-full bg-white"
+      >
+        <button
+          @click="logout"
+          class="w-full flex items-center gap-4 p-4 rounded-xl text-teal-500 hover:bg-red-50 transition-colors font-black uppercase text-xs tracking-widest"
+        >
+          <UIcon name="i-heroicons-arrow-left-on-rectangle" class="w-6 h-6" />
+          <span>Logout</span>
+        </button>
+      </div>
+    </aside>
   </div>
 
   <div>
