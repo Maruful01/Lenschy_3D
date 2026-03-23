@@ -142,6 +142,11 @@ export const getPinataImageUrl = (url: string) => {
   return `https://salmon-large-lamprey-825.mypinata.cloud/ipfs/${url}?pinataGatewayToken=dKtlHh5-U_lFXiqoWD45ltZpc8XNIBkOndHeDFKwjrt2Gb1cirkHyS5GGIhxdsrQ`;
 };
 
+export const getAppwriteAssetUrl = (id: string) => {
+  if (!id) return "";
+  return `https://cloud.appwrite.io/v1/storage/buckets/67ad058c00255d1392bd/files/${id}/view?project=67ad0347000f5699faf6`;
+};
+
 export const getAppwriteGLBURL = (
   endpoint: string,
   projectId: string,
